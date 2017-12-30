@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"cam/video/process"
 	"cam/video/sink"
@@ -39,7 +41,7 @@ func main() {
 
 	fps := 15
 
-	video = sink.NewFFMpegSink(filename, fps, sample.Mat.Cols(), sample.Mat.Rows())
+	video = sink.NewFFmpegSink(filename, fps, image.Point{X: sample.Mat.Cols(), Y: sample.Mat.Rows()}, 5*time.Second)
 	video = sink.NewFPSNormalize(video, fps)
 	defer video.Close()
 

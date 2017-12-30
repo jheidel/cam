@@ -2,9 +2,12 @@ package source
 
 import (
 	"gocv.io/x/gocv"
+	"image"
 	"time"
 )
 
+// Image is
+// TODO
 type Image struct {
 	Mat  gocv.Mat
 	Time time.Time
@@ -32,8 +35,13 @@ type Source interface {
 	// manipulate the provided Mat. Each Mat is guarenteed to be available until
 	// the caller waits for the next image (the caller should not store pointers).
 	Get() <-chan Image
-}
 
-// TODO
-type Stream struct {
+	// Size returns the size of the capture source.
+	Size() image.Point
+
+	// Connected returns whether the capture source is considered "live".
+	Connected() bool
+
+	// Close disconnects from the capture source and frees up all resources.
+	Close()
 }

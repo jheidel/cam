@@ -3,28 +3,42 @@ package sink
 import (
 	"cam/video/source"
 	"fmt"
+	"image"
 	"log"
 	"os"
 	"os/exec"
+	"time"
 )
 
-type FFMpegSink struct {
+// TODO:
+// - get ffmpeg from path or env variable
+// - docs
+// - error handling (remove fatals)
+// - configuration options
+
+type FFmpegSink struct {
 	b     chan []byte
 	close chan chan bool
 }
 
-func NewFFMpegSink(path string, fps, width, height int) *FFMpegSink {
-	f := &FFMpegSink{
-		b:     make(chan []byte),
+func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Duration) *FFmpegSink {
+	// Ensure we can store a reasonable buffer in memory without waiting for
+	// ffmpeg. This is needed since the rolling buffer will be dumped to FFmpeg
+	// upon recording start and we don't want to hold up the newer frames.
+	bufc := fps * int(writeBuffer.Seconds()) * 5 / 4
+
+	f := &FFmpegSink{
+		b:     make(chan []byte, bufc),
 		close: make(chan chan bool),
 	}
 	go func() {
+
 		c := exec.Command(
 			"/usr/local/bin/ffmpeg",
 			// Configure ffmpeg to read from the opencv pipe.
 			"-f", "rawvideo",
 			"-pixel_format", "bgr24",
-			"-video_size", fmt.Sprintf("%dx%d", width, height),
+			"-video_size", fmt.Sprintf("%dx%d", size.X, size.Y),
 			"-framerate", fmt.Sprintf("%d", fps),
 			"-i", "-", // Read from stdin.
 			// Use h264 encoding with reasonable quality and speed. Note that
@@ -40,7 +54,7 @@ func NewFFMpegSink(path string, fps, width, height int) *FFMpegSink {
 
 		var err error
 
-		// Allows for debugging ffmpeg in shell. TODO maybe remove.
+		// Allows for debugging ffmpeg in shell.
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 
@@ -49,6 +63,7 @@ func NewFFMpegSink(path string, fps, width, height int) *FFMpegSink {
 			log.Fatalf("Error getting stdin %v", err)
 		}
 
+		log.Printf("Start writing to '%s' using FFmpeg", path)
 		if err := c.Start(); err != nil {
 			log.Fatalf("Error starting ffmpeg %v", err)
 		}
@@ -62,27 +77,27 @@ func NewFFMpegSink(path string, fps, width, height int) *FFMpegSink {
 				break loop
 			case b := <-f.b:
 				if _, err := pipe.Write(b); err != nil {
-					// TODO better error handling.
 					log.Fatalf("Error writing to pipe!")
 				}
 
 			}
 		}
 
-		log.Printf("Waiting for FFMPEG shutdown.")
+		log.Printf("Waiting for FFmpeg shutdown.")
 		err = c.Wait()
-		log.Printf("FFMPEG exit with status %v", err)
+		log.Printf("FFmpeg exit with status %v", err)
 		closer <- true // Signal close is completed.
 	}()
 	return f
 }
 
-func (f *FFMpegSink) Close() {
+func (f *FFmpegSink) Close() {
 	c := make(chan bool)
 	f.close <- c
 	<-c
 }
 
-func (f *FFMpegSink) Put(input source.Image) {
+func (f *FFmpegSink) Put(input source.Image) {
+	// TODO ensure Mat is actually bgr24? Bindings don't appear to exist though.
 	f.b <- input.Mat.ToBytes()
 }

@@ -2,15 +2,20 @@ package source
 
 import (
 	"gocv.io/x/gocv"
+	"image"
 	"log"
 	"time"
 )
 
 type VideoCapture struct {
-	URI  string
+	URI string
+
 	pool *MatPool
 }
 
+// NewVideoCapture opens a capture source from the provided URI. It supports
+// any format compatible with OpenCV. Assuming FFmpeg is compiled correctly,
+// this includes support for MJPEG and RSTP IP cameras.
 func NewVideoCapture(uri string) *VideoCapture {
 	return &VideoCapture{
 		URI:  uri,
@@ -29,7 +34,7 @@ func (v *VideoCapture) Get() <-chan Image {
 		cap, err := gocv.VideoCaptureFile(v.URI)
 		if err != nil {
 			log.Fatalf("Failed to open video capture %v", err)
-			// TODO handle better
+			// TODO handle errors better
 			return
 		}
 
@@ -52,4 +57,14 @@ func (v *VideoCapture) Get() <-chan Image {
 		}
 	}()
 	return c
+}
+
+func (v *VideoCapture) Size() image.Point {
+	// TODO
+	return image.Point{}
+}
+
+func (v *VideoCapture) Connected() bool {
+	return true
+
 }

@@ -16,10 +16,6 @@ func NewWindow(name string) *Window {
 	}
 }
 
-func (w *Window) Close() {
-	w.window.Close()
-}
-
 func (w *Window) Put(input source.Image) {
 	if !w.sizeSet {
 		w.window.ResizeWindow(input.Mat.Cols(), input.Mat.Rows())
@@ -27,4 +23,8 @@ func (w *Window) Put(input source.Image) {
 	}
 	w.window.IMShow(input.Mat)
 	w.window.WaitKey(1)
+}
+
+func (w *Window) Close() {
+	w.window.Close()
 }
