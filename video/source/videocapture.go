@@ -35,6 +35,8 @@ func (v *VideoCapture) Get() <-chan Image {
 
 		i := v.pool.New()
 		for {
+			// TODO add max FPS?
+
 			i.Time = time.Now()
 			if ok := cap.Read(i.Mat); !ok {
 				time.Sleep(time.Millisecond)

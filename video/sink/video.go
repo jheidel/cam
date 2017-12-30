@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// TODO copy frame normalization logic to a common module which would also be
+// useful for gif creation.
+
 // Video writes a time-aligned video. Frames will be duplicated or skipped
 // in order to maintain the timestamps provided in the stream.
 type Video struct {
@@ -19,7 +22,7 @@ type Video struct {
 
 func NewVideo(path string, fps int, width, height int) (*Video, error) {
 	// TODO assert path ends in mkv?
-	w, err := gocv.VideoWriterFile(path, "X264", float64(fps), width, height)
+	w, err := gocv.VideoWriterFile(path, "HFYU", float64(fps), width, height)
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +43,7 @@ func (v *Video) Close() {
 }
 
 func (v *Video) Put(input source.Image) {
+
 	if v.curFrame.IsZero() {
 		input.Mat.CopyTo(v.last)
 		v.writer.Write(input.Mat)
