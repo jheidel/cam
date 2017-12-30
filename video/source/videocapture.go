@@ -8,13 +8,13 @@ import (
 
 type VideoCapture struct {
 	URI  string
-	pool *ImagePool
+	pool *MatPool
 }
 
 func NewVideoCapture(uri string) *VideoCapture {
 	return &VideoCapture{
 		URI:  uri,
-		pool: NewImagePool(),
+		pool: NewMatPool(),
 	}
 }
 
@@ -33,11 +33,14 @@ func (v *VideoCapture) Get() <-chan Image {
 			return
 		}
 
-		i := v.pool.New()
+		m := v.pool.NewMat()
 		for {
 			// TODO add max FPS?
-
-			i.Time = time.Now()
+			i := Image{
+				Mat:  m,
+				Time: time.Now(),
+				pool: v.pool,
+			}
 			if ok := cap.Read(i.Mat); !ok {
 				time.Sleep(time.Millisecond)
 				// TODO timeout; disconnect detect.
@@ -45,7 +48,7 @@ func (v *VideoCapture) Get() <-chan Image {
 				continue
 			}
 			c <- i
-			i = v.pool.New()
+			m = v.pool.NewMat()
 		}
 	}()
 	return c

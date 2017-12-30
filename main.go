@@ -17,13 +17,14 @@ import (
 import _ "net/http/pprof"
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("How to run:\n\tcapwindow [camera URI]")
+	if len(os.Args) < 3 {
+		fmt.Println("How to run:\n\tcapwindow [camera URI] [output file]")
 		return
 	}
 
 	// parse args
 	uri := os.Args[1]
+	filename := os.Args[2]
 
 	cap := source.NewVideoCapture(uri)
 	window := sink.NewWindow("Output")
@@ -31,13 +32,15 @@ func main() {
 
 	c := cap.Get()
 
+	// TODO push this into sink.
 	sample := <-c
 
-	//video, err := sink.NewVideo("/tmp/test.avi", 15, sample.Mat.Cols(), sample.Mat.Rows())
-	//if err != nil {
-	//	log.Fatal("Failed to init video")
-	//}
-	video := sink.NewFFMpegSink("foo", 15, sample.Mat.Cols(), sample.Mat.Rows())
+	var video sink.Sink
+
+	fps := 15
+
+	video = sink.NewFFMpegSink(filename, fps, sample.Mat.Cols(), sample.Mat.Rows())
+	video = sink.NewFPSNormalize(video, fps)
 	defer video.Close()
 
 	sigs := make(chan os.Signal, 1)

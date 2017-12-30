@@ -2,7 +2,6 @@ package source
 
 import (
 	"gocv.io/x/gocv"
-	"log"
 	"time"
 )
 
@@ -10,66 +9,19 @@ type Image struct {
 	Mat  gocv.Mat
 	Time time.Time
 
-	// pool is the ImagePool that created this image.
-	pool *ImagePool
+	// pool is the MatPool that created this image. It can be used in order to allocate new Mats.
+	pool *MatPool
 }
 
 func (i *Image) Release() {
-	i.pool.free <- *i
+	i.pool.ReleaseMat(i.Mat)
 }
 
 func (i *Image) NewImage() Image {
-	img := i.pool.New()
-	img.Time = i.Time
-	return img
-}
-
-type ImagePool struct {
-	new  chan chan Image
-	free chan Image
-
-	allocated int
-	available []Image
-}
-
-func (p *ImagePool) New() Image {
-	r := make(chan Image)
-	p.new <- r
-	return <-r
-}
-
-func NewImagePool() *ImagePool {
-	p := &ImagePool{
-		new:  make(chan chan Image),
-		free: make(chan Image),
+	return Image{
+		Mat:  i.pool.NewMat(),
+		Time: i.Time,
 	}
-	go func() {
-		for {
-			select {
-			case i := <-p.free:
-				p.available = append(p.available, i)
-			case r := <-p.new:
-				var i Image
-				if len(p.available) > 0 {
-					i, p.available = p.available[0], p.available[1:]
-				} else {
-					i = Image{
-						Mat:  gocv.NewMat(),
-						pool: p,
-					}
-					p.allocated += 1
-					// TODO clean; tie size to buffer.
-					// TODO start blocking callers instead (supports the file dump case).
-					if p.allocated > 500 {
-						log.Fatalf("Too many ImagePool allocations. Perhaps an Image isn't being Released?")
-					}
-				}
-				i.Time = time.Time{}
-				r <- i
-			}
-		}
-	}()
-	return p
 }
 
 // TODO something that signifies whether the source is offline.
