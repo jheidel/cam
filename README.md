@@ -41,3 +41,17 @@ http://quadcam.unrfound.unr.edu/axis-cgi/mjpg/video.cgi
  - Contribute gocv library changes back to library (In progress!)
  - Come up with a name for this project.
 
+# Installing Polymer
+
+```
+
+sudo apt-get install npm
+
+sudo npm install -g polymer-cli
+sudo npm install -g bower
+sudo apt-get install default-jre
+
+
+
+```
+

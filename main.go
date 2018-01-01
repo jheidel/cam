@@ -1,9 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"image"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,13 +13,16 @@ import (
 	"cam/video/process"
 	"cam/video/sink"
 	"cam/video/source"
-
-	"net/http"
 )
 
-import _ "net/http/pprof"
+var (
+	port = flag.Int("port", 8080, "Port to host web frontend.")
+)
 
 func main() {
+	flag.Parse()
+
+	// TODO migrate to flags once you have a config file.
 	if len(os.Args) < 3 {
 		fmt.Println("How to run:\n\tcapwindow [camera URI] [output file]")
 		return
@@ -29,19 +33,16 @@ func main() {
 	filename := os.Args[2]
 
 	cap := source.NewVideoCapture(uri)
-	window := sink.NewWindow("Output")
-	defer window.Close()
+	//window := sink.NewWindow("Output")
+	//defer window.Close()
 
 	c := cap.Get()
-
-	// TODO push this into sink.
-	sample := <-c
 
 	var video sink.Sink
 
 	fps := 15
 
-	video = sink.NewFFmpegSink(filename, fps, image.Point{X: sample.Mat.Cols(), Y: sample.Mat.Rows()}, 5*time.Second)
+	video = sink.NewFFmpegSink(filename, fps, cap.Size(), 5*time.Second)
 	video = sink.NewFPSNormalize(video, fps)
 	defer video.Close()
 
@@ -49,7 +50,10 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
+		// TODO link to polymer build directory.
+		log.Printf("Hosting web frontend on port %d", *port)
+		http.Handle("/", http.FileServer(http.Dir("./web/build/default")))
+		log.Println(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 	}()
 
 	for {

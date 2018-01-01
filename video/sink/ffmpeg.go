@@ -55,6 +55,7 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 		var err error
 
 		// Allows for debugging ffmpeg in shell.
+		// TODO
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 
@@ -83,9 +84,9 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			}
 		}
 
-		log.Printf("Waiting for FFmpeg shutdown.")
+		log.Printf("Waiting for FFmpeg shutdown...")
 		err = c.Wait()
-		log.Printf("FFmpeg exit with status %v", err)
+		log.Printf("Finished writing %s (error code %v)", path, err)
 		closer <- true // Signal close is completed.
 	}()
 	return f

@@ -1,0 +1,7 @@
+{
+  "name": "web",
+  "short_name": "web",
+  "description": "Cam frontend",
+  "start_url": "/",
+  "display": "standalone"
+}
