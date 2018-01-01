@@ -15,6 +15,7 @@ import (
 // - docs
 // - error handling (remove fatals)
 // - configuration options
+// - limit number of skipped frames allowed
 
 type FFmpegSink struct {
 	b     chan []byte

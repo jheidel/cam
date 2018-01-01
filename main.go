@@ -33,6 +33,8 @@ func main() {
 	filename := os.Args[2]
 
 	cap := source.NewVideoCapture(uri)
+	// defer cap.Close()
+
 	//window := sink.NewWindow("Output")
 	//defer window.Close()
 

@@ -108,9 +108,12 @@ func (v *VideoCapture) Get() <-chan Image {
 
 					v.lastFetch = i.Time
 					m = v.pool.NewMat()
+				} else {
+					// TODO remove
+					log.Printf("DEBUG: failed read")
 				}
 
-				if v.lastFetch.After(time.Now().Add(disconnectDelay)) {
+				if time.Now().After(v.lastFetch.Add(disconnectDelay)) {
 					v.cap.Close()
 					v.cap = nil
 					log.Printf("Closed capture source %s due to no frame for %d seconds", v.URI, disconnectDelay.Seconds())
@@ -158,6 +161,7 @@ func (v *VideoCapture) Connected() bool {
 	return v.cap != nil
 }
 
+// TODO this can deadlock if the caller stops reading from the Get stream first.
 func (v *VideoCapture) Close() {
 	c := make(chan bool)
 	v.close <- c
