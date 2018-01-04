@@ -48,12 +48,27 @@ func main() {
 	video = sink.NewFPSNormalize(video, fps)
 	defer video.Close()
 
+	mjpegServer := sink.NewMJPEGServer()
+
+	msraw, err := mjpegServer.NewStream(sink.MJPEGID{Name: "raw"})
+	if err != nil {
+		log.Fatalf("Error init MJPEG stream %v", err)
+	}
+	defer msraw.Close()
+
+	msdefault, err := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
+	if err != nil {
+		log.Fatalf("Error init MJPEG stream %v", err)
+	}
+	defer msdefault.Close()
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		// TODO link to polymer build directory.
 		log.Printf("Hosting web frontend on port %d", *port)
+		http.Handle("/mjpeg", mjpegServer)
 		http.Handle("/", http.FileServer(http.Dir("./web/build/default")))
 		log.Println(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 	}()
@@ -61,8 +76,10 @@ func main() {
 	for {
 		select {
 		case i := <-c:
+			msraw.Put(i)
 			i = process.DrawTimestamp("Gate", i)
 			//window.Put(i)
+			msdefault.Put(i)
 			video.Put(i)
 			i.Release()
 		case sig := <-sigs:
