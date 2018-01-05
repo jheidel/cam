@@ -6,8 +6,6 @@ import (
 	"log"
 	"net/http"
 	"sync"
-
-	"cam/video/source"
 )
 
 // MJPEG multi-streaming, based on implementation by saljam:
@@ -38,12 +36,12 @@ func NewMJPEGServer() *MJPEGServer {
 	}
 }
 
-func (s *MJPEGServer) NewStream(id MJPEGID) (*MJPEGStream, error) {
+func (s *MJPEGServer) NewStream(id MJPEGID) *MJPEGStream {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	if _, ok := s.m[id]; ok {
-		return nil, fmt.Errorf("A stream for %v already exists", id)
+		log.Panicf("A stream for %v already exists", id)
 	}
 
 	ms := &MJPEGStream{
@@ -54,7 +52,7 @@ func (s *MJPEGServer) NewStream(id MJPEGID) (*MJPEGStream, error) {
 	}
 
 	s.m[id] = ms
-	return ms, nil
+	return ms
 }
 
 func (s *MJPEGServer) getStream(id MJPEGID) *MJPEGStream {
@@ -127,13 +125,13 @@ func (s *MJPEGStream) empty() bool {
 	return len(s.m) == 0
 }
 
-func (s *MJPEGStream) Put(input source.Image) {
+func (s *MJPEGStream) Put(input gocv.Mat) {
 	if s.empty() {
 		// Nobody is listening; don't bother encoding.
 		return
 	}
 
-	jpeg, err := gocv.IMEncode(".jpg", input.Mat)
+	jpeg, err := gocv.IMEncode(".jpg", input)
 	if err != nil {
 		log.Printf("Error encoding to JPG for MJPEG stream %v: %v", s.id, err)
 		return

@@ -45,7 +45,8 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			// Use h264 encoding with reasonable quality and speed. Note that
 			// "preset" can be adjusted if the system is too slow to handle encoding.
 			"-c:v", "libx264",
-			"-preset", "superfast",
+			//"-preset", "superfast",
+			"-preset", "ultrafast",
 			"-crf", "30",
 			// Enable fast-start so videos can be displayed in the browser without
 			// full download.

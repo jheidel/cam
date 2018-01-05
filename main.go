@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,7 +33,16 @@ func main() {
 	uri := os.Args[1]
 	filename := os.Args[2]
 
-	cap := source.NewVideoCapture(uri)
+	fps := 15
+
+	inputfps := fps
+	if !strings.HasSuffix(uri, ".mp4") {
+		// Live source, use high FPS ceiling.
+		inputfps = 100
+	}
+
+	// TODO increase FPS for live sources.
+	cap := source.NewVideoCapture(uri, inputfps)
 	// defer cap.Close()
 
 	//window := sink.NewWindow("Output")
@@ -42,25 +52,19 @@ func main() {
 
 	var video sink.Sink
 
-	fps := 15
-
 	video = sink.NewFFmpegSink(filename, fps, cap.Size(), 5*time.Second)
 	video = sink.NewFPSNormalize(video, fps)
 	defer video.Close()
 
 	mjpegServer := sink.NewMJPEGServer()
 
-	msraw, err := mjpegServer.NewStream(sink.MJPEGID{Name: "raw"})
-	if err != nil {
-		log.Fatalf("Error init MJPEG stream %v", err)
-	}
+	msraw := mjpegServer.NewStream(sink.MJPEGID{Name: "raw"})
 	defer msraw.Close()
 
-	msdefault, err := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
-	if err != nil {
-		log.Fatalf("Error init MJPEG stream %v", err)
-	}
+	msdefault := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
 	defer msdefault.Close()
+
+	motion := process.NewMotion(mjpegServer)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -76,10 +80,15 @@ func main() {
 	for {
 		select {
 		case i := <-c:
-			msraw.Put(i)
+			msraw.Put(i.Mat)
+
+			motion.Process(i.Mat)
+
 			i = process.DrawTimestamp("Gate", i)
 			//window.Put(i)
-			msdefault.Put(i)
+
+			msdefault.Put(i.Mat)
+
 			video.Put(i)
 			i.Release()
 		case sig := <-sigs:

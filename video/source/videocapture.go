@@ -9,10 +9,6 @@ import (
 )
 
 const (
-	// maxFPS is an upper bound on the frames rate to receive to avoid spinning in
-	// a tight loop.
-	maxFPS = 100
-
 	// retryDelay defines the time to wait between reconnection attempts.
 	retryDelay = 2 * time.Second
 
@@ -22,6 +18,10 @@ const (
 
 type VideoCapture struct {
 	URI string
+
+	// This should be set high for realtime sources. For files it should be set
+	// to the actual framerate.
+	FPS int
 
 	initC chan bool
 	init  bool
@@ -34,12 +34,16 @@ type VideoCapture struct {
 	pool *MatPool
 }
 
+// TODO: this probably doesn't need to use MatPool. Just double-buffer?
+// TODO better FPS logic.
+
 // NewVideoCapture opens a capture source from the provided URI. It supports
 // any format compatible with OpenCV. Assuming FFmpeg is compiled correctly,
 // this includes support for MJPEG and RSTP IP cameras.
-func NewVideoCapture(uri string) *VideoCapture {
+func NewVideoCapture(uri string, fps int) *VideoCapture {
 	return &VideoCapture{
 		URI:   uri,
+		FPS:   fps,
 		initC: make(chan bool, 1),
 		close: make(chan chan bool, 1),
 		pool:  NewMatPool(),
@@ -95,7 +99,7 @@ func (v *VideoCapture) Get() <-chan Image {
 		m := v.pool.NewMat()
 		for {
 			start := time.Now()
-			d := time.Second / time.Duration(maxFPS)
+			d := time.Second / time.Duration(v.FPS)
 
 			if v.Connected() {
 				i := Image{
