@@ -14,10 +14,17 @@ import (
 // - get ffmpeg from path or env variable
 // - docs
 // - error handling (remove fatals)
+// - race where subprocess receives signal before the main program can react
+// (falls under error handling.)
 // - configuration options
 // - limit number of skipped frames allowed
 
+const (
+	ExtRecord = ".record"
+)
+
 type FFmpegSink struct {
+	Path  string
 	b     chan []byte
 	close chan chan bool
 }
@@ -29,6 +36,7 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 	bufc := fps * int(writeBuffer.Seconds()) * 5 / 4
 
 	f := &FFmpegSink{
+		Path:  path,
 		b:     make(chan []byte, bufc),
 		close: make(chan chan bool),
 	}
@@ -51,7 +59,9 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			// Enable fast-start so videos can be displayed in the browser without
 			// full download.
 			"-movflags", "+faststart",
-			path,
+			// Explicit format since our active output file will have a special extension.
+			"-f", "mp4",
+			path+ExtRecord,
 		)
 
 		var err error
@@ -76,11 +86,13 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 		for {
 			select {
 			case closer = <-f.close:
+				log.Printf("Closing FFMPEG.")
 				pipe.Close()
 				break loop
 			case b := <-f.b:
 				if _, err := pipe.Write(b); err != nil {
-					log.Fatalf("Error writing to pipe!")
+					// TODO error handling.
+					log.Fatalf("Error writing to pipe! (packet length %d)", len(b))
 				}
 
 			}
@@ -98,6 +110,9 @@ func (f *FFmpegSink) Close() {
 	c := make(chan bool)
 	f.close <- c
 	<-c
+	if err := os.Rename(f.Path+ExtRecord, f.Path); err != nil {
+		log.Printf("Error moving file to its final destination")
+	}
 }
 
 func (f *FFmpegSink) Put(input source.Image) {

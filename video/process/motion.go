@@ -18,7 +18,7 @@ type Motion struct {
 
 	d gocv.BackgroundSubtractorMOG2
 
-	m1, m2, st gocv.Mat
+	m1, m2, m3, st1, st3 gocv.Mat
 }
 
 func NewMotion(ms *sink.MJPEGServer) *Motion {
@@ -32,9 +32,11 @@ func NewMotion(ms *sink.MJPEGServer) *Motion {
 
 		m1: gocv.NewMat(),
 		m2: gocv.NewMat(),
+		m3: gocv.NewMat(),
 
 		// TODO allow reconfiguring structring element.
-		st: gocv.GetStructuringElement(gocv.MorphRect, image.Point{X: 5, Y: 5}),
+		st1: gocv.GetStructuringElement(gocv.MorphCross, image.Point{X: 1, Y: 1}),
+		st3: gocv.GetStructuringElement(gocv.MorphCross, image.Point{X: 3, Y: 3}),
 	}
 
 	// Fill mat buffer.
@@ -46,24 +48,29 @@ func NewMotion(ms *sink.MJPEGServer) *Motion {
 }
 
 func (m *Motion) loop() {
-	motionview := m.mjpeg.NewStream(sink.MJPEGID{Name: "motion"})
-	defer motionview.Close()
+
+	debug := m.mjpeg.NewStreamPool()
+	defer debug.Close()
 
 	for input := range m.c {
 
 		s := time.Now()
-		//gocv.Blur(input.Mat, m.m1, image.Point{X: 5, Y: 5})
 
-		gocv.MedianBlur(input, m.m1, 5)
+		//gocv.MedianBlur(input, m.m1, 10)
+		gocv.Blur(input, m.m1, image.Point{X: 10, Y: 10})
+
 		m.d.Apply(m.m1, m.m2)
+		debug.Put("motion", m.m2)
+
+		gocv.Threshold(m.m2, m.m3, 128, 255, gocv.ThresholdBinary)
+		debug.Put("motionthresh", m.m3)
 
 		// TODO separate
-		gocv.Erode(m.m2, m.m2, m.st)
-		gocv.Dilate(m.m2, m.m2, m.st)
+		gocv.Erode(m.m3, m.m3, m.st3)
+		debug.Put("motionfilter", m.m3)
+		//gocv.Dilate(m.m2, m.m2, m.st)
 
 		log.Printf("Elapsed: %v", time.Now().Sub(s))
-
-		motionview.Put(m.m2)
 
 		m.a <- input
 	}

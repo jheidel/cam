@@ -92,7 +92,7 @@ func main() {
 			video.Put(i)
 			i.Release()
 		case sig := <-sigs:
-			fmt.Println(sig)
+			log.Println("Caught signal", sig)
 			return
 		}
 	}

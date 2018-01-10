@@ -161,3 +161,38 @@ func (s *MJPEGStream) Close() {
 	defer s.parent.lock.Unlock()
 	delete(s.parent.m, s.id)
 }
+
+// MJPEGStreamPool is a convenience wrapper that holds a number of streams that
+// are created dynamically when referenced.
+type MJPEGStreamPool struct {
+	server *MJPEGServer
+	m      map[MJPEGID]*MJPEGStream
+}
+
+func (s *MJPEGServer) NewStreamPool() *MJPEGStreamPool {
+	return &MJPEGStreamPool{
+		server: s,
+		m:      make(map[MJPEGID]*MJPEGStream),
+	}
+}
+
+func (p *MJPEGStreamPool) Put(name string, img gocv.Mat) {
+	id := MJPEGID{
+		Name: name,
+	}
+	var stream *MJPEGStream
+	var ok bool
+	if stream, ok = p.m[id]; !ok {
+		stream = p.server.NewStream(id)
+		p.m[id] = stream
+	}
+	stream.Put(img)
+}
+
+func (p *MJPEGStreamPool) Close() {
+	for _, s := range p.m {
+		s.Close()
+	}
+	// Clear.
+	p.m = make(map[MJPEGID]*MJPEGStream)
+}
