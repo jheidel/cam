@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"cam/video"
 	"cam/video/process"
 	"cam/video/sink"
 	"cam/video/source"
@@ -24,14 +25,13 @@ func main() {
 	flag.Parse()
 
 	// TODO migrate to flags once you have a config file.
-	if len(os.Args) < 3 {
-		fmt.Println("How to run:\n\tcapwindow [camera URI] [output file]")
+	if len(os.Args) < 2 {
+		fmt.Println("How to run:\n\tcapwindow [camera URI]")
 		return
 	}
 
 	// parse args
 	uri := os.Args[1]
-	filename := os.Args[2]
 
 	fps := 15
 
@@ -50,11 +50,16 @@ func main() {
 
 	c := cap.Get()
 
-	var video sink.Sink
+	buftime := 3 * time.Second
+	rectime := 30 * time.Second
 
-	video = sink.NewFFmpegSink(filename, fps, cap.Size(), 5*time.Second)
-	video = sink.NewFPSNormalize(video, fps)
-	defer video.Close()
+	fp := sink.NewFFmpegProducer(&sink.FFmpegOptions{
+		Size:       cap.Size(),
+		FPS:        fps,
+		BufferTime: buftime,
+	})
+
+	rec := video.NewRecorder(fp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime})
 
 	mjpegServer := sink.NewMJPEGServer()
 
@@ -64,7 +69,7 @@ func main() {
 	msdefault := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
 	defer msdefault.Close()
 
-	motion := process.NewMotion(mjpegServer)
+	motion := process.NewMotion(mjpegServer, cap.Size())
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -73,6 +78,7 @@ func main() {
 		// TODO link to polymer build directory.
 		log.Printf("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
+		http.Handle("/trigger", rec)
 		http.Handle("/", http.FileServer(http.Dir("./web/build/default")))
 		log.Println(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 	}()
@@ -89,7 +95,8 @@ func main() {
 
 			msdefault.Put(i.Mat)
 
-			video.Put(i)
+			//video.Put(i)
+			rec.Put(i)
 			i.Release()
 		case sig := <-sigs:
 			log.Println("Caught signal", sig)

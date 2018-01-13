@@ -13,3 +13,7 @@ type Sink interface {
 	// Close should be called to finalize the Sink.
 	Close()
 }
+
+type SinkProducer interface {
+	New() Sink
+}

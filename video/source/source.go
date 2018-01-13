@@ -20,6 +20,7 @@ func (i *Image) Release() {
 	i.pool.ReleaseMat(i.Mat)
 }
 
+// Don't think this is used ?
 func (i *Image) NewImage() Image {
 	return Image{
 		Mat:  i.pool.NewMat(),

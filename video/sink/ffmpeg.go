@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	strftime "github.com/jehiah/go-strftime"
 )
 
 // TODO:
@@ -20,14 +22,48 @@ import (
 // - limit number of skipped frames allowed
 
 const (
-	ExtRecord = ".record"
+	ExtRecord = ".temp"
 )
+
+type FFmpegOptions struct {
+	// Size is the dimensions of the source image.
+	Size image.Point
+
+	// FPS is the target frames per second of the file.
+	FPS int
+
+	// BufferTime is the amount of expected historical state to write.
+	BufferTime time.Duration
+}
+
+type FFmpegProducer struct {
+	opts *FFmpegOptions
+}
+
+// TODO maybe move this produer elsewhere since it merges together ffmpeg and normalize.
+func NewFFmpegProducer(o *FFmpegOptions) *FFmpegProducer {
+	return &FFmpegProducer{
+		opts: o,
+	}
+}
+
+func (p *FFmpegProducer) New() Sink {
+	// TODO generate using path management library.
+
+	path := strftime.Format("/tmp/recording_%Y%m%d-%H%M%S.mp4", time.Now())
+
+	sink := NewFFmpegSink(path, p.opts.FPS, p.opts.Size, p.opts.BufferTime)
+	// Ensure video is output with constant FPS.
+	return NewFPSNormalize(sink, p.opts.FPS)
+}
 
 type FFmpegSink struct {
 	Path  string
 	b     chan []byte
 	close chan chan bool
 }
+
+// TODO ffmpeg producer.
 
 func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Duration) *FFmpegSink {
 	// Ensure we can store a reasonable buffer in memory without waiting for
