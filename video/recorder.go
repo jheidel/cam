@@ -10,7 +10,7 @@ import (
 )
 
 type RecorderOptions struct {
-	BufferTime, RecordTime time.Duration
+	BufferTime, RecordTime, MaxRecordTime time.Duration
 }
 
 type Recorder struct {
@@ -39,6 +39,17 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 		recording := false
 		var out sink.Sink
 		var stop <-chan time.Time
+		var stopLong <-chan time.Time
+
+		stopFunc := func() {
+			if !recording {
+				panic("expected to be in state recording")
+			}
+			out.Close()
+			recording = false
+			stop = nil
+			stopLong = nil
+		}
 
 		for {
 			select {
@@ -56,13 +67,12 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 					recording = true
 				}
 				stop = time.NewTimer(r.opts.RecordTime).C
+				stopLong = time.NewTimer(r.opts.MaxRecordTime).C
 
 			case <-stop:
-				if !recording {
-					panic("expected to be in state recording")
-				}
-				out.Close()
-				recording = false
+				stopFunc()
+			case <-stopLong:
+				stopFunc()
 
 			case c := <-r.close:
 				if recording {

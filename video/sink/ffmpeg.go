@@ -69,7 +69,7 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 	// Ensure we can store a reasonable buffer in memory without waiting for
 	// ffmpeg. This is needed since the rolling buffer will be dumped to FFmpeg
 	// upon recording start and we don't want to hold up the newer frames.
-	bufc := fps * int(writeBuffer.Seconds()) * 5 / 4
+	bufc := fps * int(writeBuffer.Seconds()) * 2
 
 	f := &FFmpegSink{
 		Path:  path,
@@ -153,5 +153,9 @@ func (f *FFmpegSink) Close() {
 
 func (f *FFmpegSink) Put(input source.Image) {
 	// TODO ensure Mat is actually bgr24? Bindings don't appear to exist though.
-	f.b <- input.Mat.ToBytes()
+	select {
+	case f.b <- input.Mat.ToBytes():
+	default:
+		log.Printf("WARN: video output frame skip. Insufficient buffer?")
+	}
 }

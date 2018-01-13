@@ -9,7 +9,24 @@ import (
 	"time"
 )
 
+type Triggerable interface {
+	// Indicates that motion has been triggered.
+	Trigger()
+}
+
+var (
+	// Be blind to motion for this amount of time to avoid detections when
+	// starting.
+	StartupTimeout = 10 * time.Second
+)
+
+// TODO: implement FPS limiting, maybe blend together frames?
+// TODO: countdown before triggering
+
 type Motion struct {
+	// If set, will be triggered when motion is above the threshold.
+	Trigger Triggerable
+
 	// Channel for incoming images.
 	c     chan gocv.Mat
 	mjpeg *sink.MJPEGServer
@@ -68,6 +85,12 @@ func (m *Motion) loop() {
 	debug := m.mjpeg.NewStreamPool()
 	defer debug.Close()
 
+	motionEnabled := false
+	time.AfterFunc(StartupTimeout, func() {
+		log.Printf("Now watching for motion.")
+		motionEnabled = true
+	})
+
 	for input := range m.c {
 		s := time.Now()
 
@@ -104,10 +127,18 @@ func (m *Motion) loop() {
 			gocv.Rectangle(m.draw, bounds.Add(m.crop.Min), color.RGBA{255, 0, 0, 255}, 2)
 		}
 
+		if motionEnabled && len(contours) > 0 {
+			log.Printf("Detected motion, %d contours", len(contours))
+			if m.Trigger != nil {
+				m.Trigger.Trigger()
+			}
+		}
+
 		debug.Put("motiondraw", m.draw)
 
 		log.Printf("Elapsed: %v", time.Now().Sub(s))
 
+		// Return image to the available pool.
 		m.a <- input
 	}
 }

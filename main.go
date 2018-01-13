@@ -52,14 +52,13 @@ func main() {
 
 	buftime := 3 * time.Second
 	rectime := 30 * time.Second
+	maxtime := 2 * time.Minute
 
 	fp := sink.NewFFmpegProducer(&sink.FFmpegOptions{
 		Size:       cap.Size(),
 		FPS:        fps,
 		BufferTime: buftime,
 	})
-
-	rec := video.NewRecorder(fp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime})
 
 	mjpegServer := sink.NewMJPEGServer()
 
@@ -69,7 +68,12 @@ func main() {
 	msdefault := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
 	defer msdefault.Close()
 
+	rec := video.NewRecorder(fp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime, MaxRecordTime: maxtime})
+	defer rec.Close()
+
 	motion := process.NewMotion(mjpegServer, cap.Size())
+	// Trigger recorder on motion.
+	motion.Trigger = rec
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
