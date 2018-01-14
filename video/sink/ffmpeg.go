@@ -60,7 +60,7 @@ func (p *FFmpegProducer) New() Sink {
 type FFmpegSink struct {
 	Path  string
 	b     chan []byte
-	close chan chan bool
+	close chan bool
 }
 
 // TODO ffmpeg producer.
@@ -74,7 +74,7 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 	f := &FFmpegSink{
 		Path:  path,
 		b:     make(chan []byte, bufc),
-		close: make(chan chan bool),
+		close: make(chan bool),
 	}
 	go func() {
 
@@ -117,11 +117,10 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			log.Fatalf("Error starting ffmpeg %v", err)
 		}
 
-		var closer chan bool
 	loop:
 		for {
 			select {
-			case closer = <-f.close:
+			case <-f.close:
 				log.Printf("Closing FFMPEG.")
 				pipe.Close()
 				break loop
@@ -137,18 +136,16 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 		log.Printf("Waiting for FFmpeg shutdown...")
 		err = c.Wait()
 		log.Printf("Finished writing %s (error code %v)", path, err)
-		closer <- true // Signal close is completed.
+
+		if err := os.Rename(f.Path+ExtRecord, f.Path); err != nil {
+			log.Printf("Error moving file to its final destination")
+		}
 	}()
 	return f
 }
 
 func (f *FFmpegSink) Close() {
-	c := make(chan bool)
-	f.close <- c
-	<-c
-	if err := os.Rename(f.Path+ExtRecord, f.Path); err != nil {
-		log.Printf("Error moving file to its final destination")
-	}
+	f.close <- true
 }
 
 func (f *FFmpegSink) Put(input source.Image) {

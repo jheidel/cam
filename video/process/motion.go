@@ -20,12 +20,17 @@ var (
 	StartupTimeout = 10 * time.Second
 )
 
-// TODO: implement FPS limiting, maybe blend together frames?
-// TODO: countdown before triggering
+// TODO: CPU usage is too high, FPS limiting would help (FINISH)
 
 type Motion struct {
 	// If set, will be triggered when motion is above the threshold.
 	Trigger Triggerable
+
+	BlendRatio float64
+
+	AnalysisFPS int
+
+	lastFrame time.Time
 
 	// Channel for incoming images.
 	c     chan gocv.Mat
@@ -36,7 +41,7 @@ type Motion struct {
 
 	d gocv.BackgroundSubtractorMOG2
 
-	draw, m0, m1, m2, m3, st1, sts, stl, mask gocv.Mat
+	blend, blendin, draw, m0, m1, m2, m3, st1, sts, stl, mask gocv.Mat
 
 	crop image.Rectangle
 }
@@ -56,13 +61,20 @@ func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
 
 		a: make(chan gocv.Mat, 2),
 
+		BlendRatio: 0.38,
+
+		// Slow down analysis to limit CPU usage.
+		AnalysisFPS: 2,
+
 		d: gocv.NewBackgroundSubtractorMOG2(),
 
-		draw: gocv.NewMat(),
-		m0:   gocv.NewMat(),
-		m1:   gocv.NewMat(),
-		m2:   gocv.NewMat(),
-		m3:   gocv.NewMat(),
+		blend:   gocv.NewMat(),
+		blendin: gocv.NewMat(),
+		draw:    gocv.NewMat(),
+		m0:      gocv.NewMat(),
+		m1:      gocv.NewMat(),
+		m2:      gocv.NewMat(),
+		m3:      gocv.NewMat(),
 
 		mask: mask,
 		crop: gocv.BoundingRect(bounds),
@@ -91,17 +103,33 @@ func (m *Motion) loop() {
 		motionEnabled = true
 	})
 
+	first := true
+
 	for input := range m.c {
 		s := time.Now()
 
-		input.CopyTo(m.draw)
+		if first {
+			input.CopyTo(m.blend)
+			first = false
+		} else {
+			gocv.AddWeighted(input, m.BlendRatio, m.blend, 1-m.BlendRatio, 0.0, m.blend)
+		}
+
+		// TODO draw on source image, or expose bounding rects.
+		m.blend.CopyTo(m.blendin)
+
+		// TODO: limit FPS here.
+
+		debug.Put("blended", m.blendin)
+
+		m.blendin.CopyTo(m.draw)
 
 		debug.Put("mask", m.mask)
 
-		gocv.BitwiseAnd(input, m.mask, input)
-		debug.Put("masked", input)
+		gocv.BitwiseAnd(m.blendin, m.mask, m.blendin)
+		debug.Put("masked", m.blendin)
 
-		inputcrop := input.Region(m.crop)
+		inputcrop := m.blendin.Region(m.crop)
 		debug.Put("cropped", inputcrop)
 
 		//gocv.MedianBlur(input, m.m1, 10)
@@ -143,6 +171,7 @@ func (m *Motion) loop() {
 	}
 }
 
+// TODO make this take Image so it's time aware.
 func (m *Motion) Process(input gocv.Mat) {
 	mat := <-m.a
 	input.CopyTo(mat)

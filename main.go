@@ -50,9 +50,10 @@ func main() {
 
 	c := cap.Get()
 
-	buftime := 3 * time.Second
-	rectime := 30 * time.Second
-	maxtime := 2 * time.Minute
+	buftime := 2 * time.Second
+	rectime := 20 * time.Second
+	// Max time for video clips before interruption.
+	maxtime := 5 * time.Minute
 
 	fp := sink.NewFFmpegProducer(&sink.FFmpegOptions{
 		Size:       cap.Size(),
