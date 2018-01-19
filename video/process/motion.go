@@ -21,6 +21,7 @@ var (
 )
 
 // TODO: CPU usage is too high, FPS limiting would help (FINISH)
+// TODO: option to disable shadow elimination?
 
 type Motion struct {
 	// If set, will be triggered when motion is above the threshold.
@@ -140,7 +141,9 @@ func (m *Motion) loop() {
 		m.d.Apply(inputcrop, m.m2)
 		debug.Put("motion", m.m2)
 
-		gocv.Threshold(m.m2, m.m3, 128, 255, gocv.ThresholdBinary)
+		// was 128
+		// Maybe be smart and turn this on only at night?
+		gocv.Threshold(m.m2, m.m3, 1, 255, gocv.ThresholdBinary)
 		debug.Put("motionthresh", m.m3)
 
 		// TODO separate

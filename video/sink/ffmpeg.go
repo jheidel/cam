@@ -22,7 +22,7 @@ import (
 // - limit number of skipped frames allowed
 
 const (
-	ExtRecord = ".temp"
+	ExtTemp = ".temp"
 )
 
 type FFmpegOptions struct {
@@ -97,7 +97,7 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			"-movflags", "+faststart",
 			// Explicit format since our active output file will have a special extension.
 			"-f", "mp4",
-			path+ExtRecord,
+			path+ExtTemp,
 		)
 
 		var err error
@@ -137,7 +137,7 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 		err = c.Wait()
 		log.Printf("Finished writing %s (error code %v)", path, err)
 
-		if err := os.Rename(f.Path+ExtRecord, f.Path); err != nil {
+		if err := os.Rename(f.Path+ExtTemp, f.Path); err != nil {
 			log.Printf("Error moving file to its final destination")
 		}
 	}()
