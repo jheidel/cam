@@ -67,7 +67,7 @@ func (s *MJPEGServer) getStream(id MJPEGID) *MJPEGStream {
 // ServeHTTP implements http.Handler interface, serving MJPEG.
 func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), 400)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -76,13 +76,13 @@ func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if id.Name == "" {
-		http.Error(w, "missing name", 400)
+		http.Error(w, "missing name", http.StatusBadRequest)
 		return
 	}
 
 	stream := s.getStream(id)
 	if stream == nil {
-		http.Error(w, "unknown stream ID", 404)
+		http.Error(w, "unknown stream ID", http.StatusNotFound)
 		return
 	}
 

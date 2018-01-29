@@ -20,12 +20,18 @@ func (i *Image) Release() {
 	i.pool.ReleaseMat(i.Mat)
 }
 
-// Don't think this is used ?
-func (i *Image) NewImage() Image {
-	return Image{
-		Mat:  i.pool.NewMat(),
+func (i *Image) CloneToPool(pool *MatPool) Image {
+	n := Image{
+		Mat:  pool.NewMat(),
 		Time: i.Time,
+		pool: pool,
 	}
+	i.Mat.CopyTo(n.Mat)
+	return n
+}
+
+func (i *Image) Clone() Image {
+	return i.CloneToPool(i.pool)
 }
 
 // TODO something that signifies whether the source is offline.

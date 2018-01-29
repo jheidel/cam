@@ -18,6 +18,7 @@ type Buffer struct {
 	close    chan chan bool
 	flush    chan sink.Sink
 	flushack chan bool
+	getLast  chan chan source.Image
 }
 
 func NewBuffer(maxAge time.Duration) *Buffer {
@@ -29,6 +30,7 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 		close:    make(chan chan bool),
 		flush:    make(chan sink.Sink),
 		flushack: make(chan bool),
+		getLast:  make(chan chan source.Image),
 	}
 	go func() {
 		for {
@@ -56,6 +58,9 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 				}
 				c <- true
 				return
+			case c := <-b.getLast:
+				last := b.buffer[len(b.buffer)-1]
+				c <- last.Clone()
 			}
 		}
 	}()
@@ -63,13 +68,14 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 }
 
 func (b *Buffer) Put(input source.Image) {
-	m := b.pool.NewMat()
-	input.Mat.CopyTo(m)
-	i := source.Image{
-		Mat:  m,
-		Time: input.Time,
-	}
-	b.input <- i
+	b.input <- input.CloneToPool(b.pool)
+}
+
+// GetLast returns a copy of the image. The caller must release it.
+func (b *Buffer) GetLast() source.Image {
+	c := make(chan source.Image)
+	b.getLast <- c
+	return <-c
 }
 
 func (b *Buffer) FlushToSink(sink sink.Sink) {

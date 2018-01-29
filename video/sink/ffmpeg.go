@@ -8,8 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"time"
-
-	strftime "github.com/jehiah/go-strftime"
 )
 
 // TODO:
@@ -36,45 +34,24 @@ type FFmpegOptions struct {
 	BufferTime time.Duration
 }
 
-type FFmpegProducer struct {
-	opts *FFmpegOptions
-}
-
-// TODO maybe move this produer elsewhere since it merges together ffmpeg and normalize.
-func NewFFmpegProducer(o *FFmpegOptions) *FFmpegProducer {
-	return &FFmpegProducer{
-		opts: o,
-	}
-}
-
-func (p *FFmpegProducer) New() Sink {
-	// TODO generate using path management library.
-
-	path := strftime.Format("/tmp/recording_%Y%m%d-%H%M%S.mp4", time.Now())
-
-	sink := NewFFmpegSink(path, p.opts.FPS, p.opts.Size, p.opts.BufferTime)
-	// Ensure video is output with constant FPS.
-	return NewFPSNormalize(sink, p.opts.FPS)
-}
-
 type FFmpegSink struct {
 	Path  string
 	b     chan []byte
-	close chan bool
+	close chan chan bool
 }
 
 // TODO ffmpeg producer.
 
-func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Duration) *FFmpegSink {
+func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 	// Ensure we can store a reasonable buffer in memory without waiting for
 	// ffmpeg. This is needed since the rolling buffer will be dumped to FFmpeg
 	// upon recording start and we don't want to hold up the newer frames.
-	bufc := fps * int(writeBuffer.Seconds()) * 2
+	bufc := opts.FPS * (int(opts.BufferTime.Seconds()) + 20)
 
 	f := &FFmpegSink{
 		Path:  path,
 		b:     make(chan []byte, bufc),
-		close: make(chan bool),
+		close: make(chan chan bool),
 	}
 	go func() {
 
@@ -83,8 +60,8 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			// Configure ffmpeg to read from the opencv pipe.
 			"-f", "rawvideo",
 			"-pixel_format", "bgr24",
-			"-video_size", fmt.Sprintf("%dx%d", size.X, size.Y),
-			"-framerate", fmt.Sprintf("%d", fps),
+			"-video_size", fmt.Sprintf("%dx%d", opts.Size.X, opts.Size.Y),
+			"-framerate", fmt.Sprintf("%d", opts.FPS),
 			"-i", "-", // Read from stdin.
 			// Use h264 encoding with reasonable quality and speed. Note that
 			// "preset" can be adjusted if the system is too slow to handle encoding.
@@ -117,10 +94,11 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 			log.Fatalf("Error starting ffmpeg %v", err)
 		}
 
+		var closec chan bool
 	loop:
 		for {
 			select {
-			case <-f.close:
+			case closec = <-f.close:
 				log.Printf("Closing FFMPEG.")
 				pipe.Close()
 				break loop
@@ -140,12 +118,15 @@ func NewFFmpegSink(path string, fps int, size image.Point, writeBuffer time.Dura
 		if err := os.Rename(f.Path+ExtTemp, f.Path); err != nil {
 			log.Printf("Error moving file to its final destination")
 		}
+		closec <- true
 	}()
 	return f
 }
 
 func (f *FFmpegSink) Close() {
-	f.close <- true
+	c := make(chan bool)
+	f.close <- c
+	<-c
 }
 
 func (f *FFmpegSink) Put(input source.Image) {

@@ -45,7 +45,7 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 			if !recording {
 				panic("expected to be in state recording")
 			}
-			out.Close()
+			go out.Close()
 			recording = false
 			stop = nil
 			stopLong = nil
@@ -62,7 +62,7 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 
 			case <-r.trigger:
 				if !recording {
-					out = r.producer.New()
+					out = r.producer.New(r.buf.GetLast())
 					r.buf.FlushToSink(out)
 					recording = true
 				}

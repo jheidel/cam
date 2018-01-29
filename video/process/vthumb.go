@@ -10,17 +10,18 @@ const (
 	ExtTemp = ".temp"
 )
 
-type ThumbnailProducer struct {
+type VThumbProducer struct {
 	c     chan *workItem
 	close chan chan bool
 }
 
 type workItem struct {
 	src, dst string
+	donec    chan bool
 }
 
-func NewThumbnailProducer() *ThumbnailProducer {
-	f := &ThumbnailProducer{
+func NewVThumbProducer() *VThumbProducer {
+	f := &VThumbProducer{
 		c:     make(chan *workItem, 100),
 		close: make(chan chan bool, 1),
 	}
@@ -84,25 +85,29 @@ func NewThumbnailProducer() *ThumbnailProducer {
 				} else {
 					log.Printf("Thumbnail conversion failed for %v: %v", w, err)
 				}
+				w.donec <- true
 			}
 		}
 	}()
 	return f
 }
 
-func (f *ThumbnailProducer) Process(src, dst string) {
+func (f *VThumbProducer) Process(src, dst string) <-chan bool {
 	w := &workItem{
-		src: src,
-		dst: dst,
+		src:   src,
+		dst:   dst,
+		donec: make(chan bool),
 	}
 	select {
 	case f.c <- w:
 	default:
 		log.Printf("WARN: thumbnail processing dropped due to backlog")
+		return nil
 	}
+	return w.donec
 }
 
-func (f *ThumbnailProducer) Close() {
+func (f *VThumbProducer) Close() {
 	c := make(chan bool)
 	f.close <- c
 	<-c

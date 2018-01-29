@@ -15,5 +15,9 @@ type Sink interface {
 }
 
 type SinkProducer interface {
-	New() Sink
+	// New produces a new sink from the provided triggering image. In motion
+	// detection cases, `trigger` will be the first frame containing the motion,
+	// though it may not be the first frame written to the sink if the output is
+	// buffered. `trigger` must be released when finished.
+	New(trigger source.Image) Sink
 }

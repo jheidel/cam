@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"cam/serve"
 	"cam/video"
 	"cam/video/process"
 	"cam/video/sink"
@@ -55,11 +56,20 @@ func main() {
 	// Max time for video clips before interruption.
 	maxtime := 5 * time.Minute
 
-	fp := sink.NewFFmpegProducer(&sink.FFmpegOptions{
-		Size:       cap.Size(),
-		FPS:        fps,
-		BufferTime: buftime,
-	})
+	fs, err := video.NewFilesystem("/tmp/gatecam/")
+	if err != nil {
+		log.Fatalf("Failed to create filesystem: %v", err)
+	}
+
+	vp := &video.VideoSinkProducer{
+		FFmpegOptions: sink.FFmpegOptions{
+			Size:       cap.Size(),
+			FPS:        fps,
+			BufferTime: buftime,
+		},
+		Filesystem:     fs,
+		VThumbProducer: process.NewVThumbProducer(),
+	}
 
 	mjpegServer := sink.NewMJPEGServer()
 
@@ -69,7 +79,7 @@ func main() {
 	msdefault := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
 	defer msdefault.Close()
 
-	rec := video.NewRecorder(fp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime, MaxRecordTime: maxtime})
+	rec := video.NewRecorder(vp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime, MaxRecordTime: maxtime})
 	defer rec.Close()
 
 	motion := process.NewMotion(mjpegServer, cap.Size())
@@ -79,11 +89,19 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
+	meta := &serve.MetaServer{
+		FS: fs,
+	}
+
 	go func() {
-		// TODO link to polymer build directory.
 		log.Printf("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
 		http.Handle("/trigger", rec)
+		http.Handle("/events", meta)
+		http.Handle("/video", serve.NewVideoServer(fs))
+		http.Handle("/thumb", serve.NewThumbServer(fs))
+		http.Handle("/vthumb", serve.NewVThumbServer(fs))
+		// TODO link to polymer build directory.
 		http.Handle("/", http.FileServer(http.Dir("./web/build/default")))
 		log.Println(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
 	}()

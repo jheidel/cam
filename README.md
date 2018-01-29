@@ -26,6 +26,7 @@ ffmpeg -i /tmp/test.avi -c:v libx264 -preset superfast -movflags +faststart -crf
 
 # Thumbnail
 # Maybe consider webm; though will need recompiled FFmpeg.
+
 ffmpeg -i /tmp/test.avi -r 3 -c:v libx264 -crf 30 -vf "setpts=0.2*PTS,scale=240:135" -preset superfast /tmp/test.mp4
 ```
 
@@ -40,6 +41,36 @@ http://quadcam.unrfound.unr.edu/axis-cgi/mjpg/video.cgi
 
  - Contribute gocv library changes back to library (In progress!)
  - Come up with a name for this project.
+ - Camera abstraction
+ - Configuration file
+ - Polymer frontend
+
+Web endpoints:
+
+ /mjpeg
+   (mjpeg handler, takes a camera and a debug name)
+
+ /video
+   (returns mp4 data directly)
+
+ /thumb
+   (returns jpeg thumbnail)
+
+ /vthumb
+   (returns mp4 thumbnail)
+
+ /cameras
+   (lists camera information, JSON)
+
+ /events
+   (lists historical event information, JSON)
+
+ /eventstream
+   (save as events, but proivides a streaming update)
+
+Websocket for streaming data?
+
+
 
 # Installing Polymer
 

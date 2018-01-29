@@ -16,11 +16,16 @@ const (
 
 	// FileTimeLayout defines the format of filenames.
 	// See https://golang.org/src/time/format.go.
-	FileTimeLayout = "20060102-150405-Z0700"
+	FileTimeLayout = "20060102-150405Z0700"
+)
+
+var (
+	FilesystemRefresh = time.Minute
 )
 
 type VideoRecord struct {
 	Time time.Time
+	ID   string
 
 	VideoPath  string
 	ThumbPath  string
@@ -28,30 +33,46 @@ type VideoRecord struct {
 }
 
 // TODO json version for frontend.
-// TODO auto refresh periodic.
-// TODO refresh when things change.
 
 type Filesystem struct {
 	BasePath string
 
-	Records []*VideoRecord
+	Records map[string]*VideoRecord
 
-	l sync.Mutex
+	refreshc chan bool
+	l        sync.Mutex
 }
 
 func NewFilesystem(path string) (*Filesystem, error) {
 	if err := os.MkdirAll(path, 0755); err != nil {
 		return nil, err
 	}
-	return &Filesystem{
+	f := &Filesystem{
 		BasePath: path,
-	}, nil
+		refreshc: make(chan bool, 1),
+	}
+	go func() {
+		f.refresh()
+		t := time.NewTicker(FilesystemRefresh)
+		for {
+			select {
+			case <-t.C:
+				f.refresh()
+			case <-f.refreshc:
+				f.refresh()
+			}
+		}
+	}()
+	return f, nil
 }
 
 func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
-	base := filepath.Join(f.BasePath, t.Format(FileTimeLayout))
+	id := t.Format(FileTimeLayout)
+	base := filepath.Join(f.BasePath, id)
 	return &VideoRecord{
-		Time:       t,
+		Time: t,
+		ID:   id,
+
 		VideoPath:  base + ExtVideo,
 		ThumbPath:  base + ExtThumb,
 		VThumbPath: base + ExtVThumb,
@@ -59,7 +80,7 @@ func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 }
 
 func (f *Filesystem) refresh() error {
-	m := make(map[time.Time]*VideoRecord)
+	m := make(map[string]*VideoRecord)
 
 	files, err := ioutil.ReadDir(f.BasePath)
 	if err != nil {
@@ -71,15 +92,17 @@ func (f *Filesystem) refresh() error {
 		if len(b) < len(FileTimeLayout) {
 			continue
 		}
-		t, err := time.Parse(FileTimeLayout, b[:len(FileTimeLayout)])
+		id := b[:len(FileTimeLayout)]
+		t, err := time.Parse(FileTimeLayout, id)
 		if err != nil {
 			continue
 		}
 
-		v := m[t]
+		v := m[id]
 		if v == nil {
 			v = &VideoRecord{
 				Time: t,
+				ID:   id,
 			}
 		}
 
@@ -95,25 +118,39 @@ func (f *Filesystem) refresh() error {
 			continue
 		}
 
-		m[t] = v
-	}
-
-	records := make([]*VideoRecord, 0, len(m))
-	for _, v := range m {
-		records = append(records, v)
+		m[id] = v
 	}
 
 	f.l.Lock()
 	defer f.l.Unlock()
-	f.Records = records
+	f.Records = m
 
 	return nil
+}
+
+// Refresh triggers a manual refresh of the filesystem records.
+func (f *Filesystem) Refresh() {
+	select {
+	case f.refreshc <- true:
+	default:
+	}
 }
 
 func (f *Filesystem) GetRecords() []*VideoRecord {
 	f.l.Lock()
 	defer f.l.Unlock()
-	return f.Records[:]
+
+	var rs []*VideoRecord
+	for _, r := range f.Records {
+		rs = append(rs, r)
+	}
+	return rs
 }
 
-// TODO garbage collecting.
+func (f *Filesystem) GetRecordByID(ID string) *VideoRecord {
+	f.l.Lock()
+	defer f.l.Unlock()
+	return f.Records[ID]
+}
+
+// TODO garbage collecting old records.
