@@ -65,7 +65,7 @@ func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
 		BlendRatio: 0.38,
 
 		// Slow down analysis to limit CPU usage.
-		AnalysisFPS: 2,
+		AnalysisFPS: 1,
 
 		d: gocv.NewBackgroundSubtractorMOG2(),
 
@@ -94,7 +94,6 @@ func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
 }
 
 func (m *Motion) loop() {
-
 	debug := m.mjpeg.NewStreamPool()
 	defer debug.Close()
 
@@ -120,6 +119,15 @@ func (m *Motion) loop() {
 		m.blend.CopyTo(m.blendin)
 
 		// TODO: limit FPS here.
+
+		if s.Sub(m.lastFrame) < time.Second/time.Duration(m.AnalysisFPS) {
+			// Return frame to available pool.
+			// TODO refactor...
+			m.a <- input
+			// Skip frame processing
+			continue
+		}
+		m.lastFrame = s
 
 		debug.Put("blended", m.blendin)
 
