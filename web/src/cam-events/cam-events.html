@@ -1,0 +1,36 @@
+<link rel="import" href="../../bower_components/polymer/polymer-element.html">
+
+<link rel="import" href="../../bower_components/paper-card/paper-card.html">
+
+<dom-module id="cam-events">
+  <template>
+    <style>
+		paper-card {
+            margin: 10px;
+		}
+    </style>
+
+    <paper-card heading="Event History" alt="Event History">
+      <div class="card-content">
+              I am event history.
+            </div>
+    </paper-card>
+
+  </template>
+
+  <script>
+    /**
+     * @customElement
+     * @polymer
+     */
+    class CamEvents extends Polymer.Element {
+      static get is() { return 'cam-events'; }
+      static get properties() {
+        return {
+        };
+      }
+    }
+
+    window.customElements.define(CamEvents.is, CamEvents);
+  </script>
+</dom-module>
