@@ -72,6 +72,10 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 			// Enable fast-start so videos can be displayed in the browser without
 			// full download.
 			"-movflags", "+faststart",
+			// Allow playback on a wider range of devices.
+			"-pix_fmt", "yuv420p",
+			"-profile:v", "baseline",
+			"-level", "3.0",
 			// Explicit format since our active output file will have a special extension.
 			"-f", "mp4",
 			path+ExtTemp,

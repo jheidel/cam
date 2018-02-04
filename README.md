@@ -70,6 +70,8 @@ Web endpoints:
 
 Websocket for streaming data?
 
+go get github.com/gorilla/websocket
+
 
 
 # Installing Polymer

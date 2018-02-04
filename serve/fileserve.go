@@ -3,9 +3,11 @@ package serve
 import (
 	"cam/video"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
+	"path"
+	"strconv"
+	"time"
 )
 
 // TODO limit read parallelism to avoid disk thrashing?
@@ -59,13 +61,35 @@ func (s *FileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	f, err := os.Open(s.PathFunc(vr))
+	var err error
+	var dl bool
+	if r.Form.Get("download") != "" {
+		dl, err = strconv.ParseBool(r.Form.Get("download"))
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid value for download: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	p := s.PathFunc(vr)
+
+	f, err := os.Open(p)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	defer f.Close()
 
+	if dl {
+		fi, err := f.Stat()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", path.Base(p)))
+	}
+
 	w.Header().Add("Content-Type", s.ContentType)
-	io.Copy(w, f)
+	http.ServeContent(w, r, p, time.Time{}, f)
 }

@@ -23,6 +23,10 @@ var (
 	FilesystemRefresh = time.Minute
 )
 
+type FilesystemListener interface {
+	FilesystemUpdated()
+}
+
 type VideoRecord struct {
 	Time time.Time
 	ID   string
@@ -38,6 +42,8 @@ type Filesystem struct {
 	BasePath string
 
 	Records map[string]*VideoRecord
+
+	Listeners []FilesystemListener
 
 	refreshc chan bool
 	l        sync.Mutex
@@ -125,6 +131,11 @@ func (f *Filesystem) refresh() error {
 	defer f.l.Unlock()
 	f.Records = m
 
+	go func() {
+		for _, listener := range f.Listeners {
+			listener.FilesystemUpdated()
+		}
+	}()
 	return nil
 }
 

@@ -65,9 +65,9 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 					out = r.producer.New(r.buf.GetLast())
 					r.buf.FlushToSink(out)
 					recording = true
+					stopLong = time.NewTimer(r.opts.MaxRecordTime).C
 				}
 				stop = time.NewTimer(r.opts.RecordTime).C
-				stopLong = time.NewTimer(r.opts.MaxRecordTime).C
 
 			case <-stop:
 				stopFunc()

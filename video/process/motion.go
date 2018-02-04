@@ -150,8 +150,10 @@ func (m *Motion) loop() {
 		debug.Put("motion", m.m2)
 
 		// was 128
+		// day: 128
+		// night: 1
 		// Maybe be smart and turn this on only at night?
-		gocv.Threshold(m.m2, m.m3, 1, 255, gocv.ThresholdBinary)
+		gocv.Threshold(m.m2, m.m3, 128, 255, gocv.ThresholdBinary)
 		debug.Put("motionthresh", m.m3)
 
 		// TODO separate
@@ -175,7 +177,8 @@ func (m *Motion) loop() {
 
 		debug.Put("motiondraw", m.draw)
 
-		log.Printf("Elapsed: %v", time.Now().Sub(s))
+		// TODO: export this as a streaming stat.
+		// log.Printf("Elapsed: %v", time.Now().Sub(s))
 
 		// Return image to the available pool.
 		m.a <- input

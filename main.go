@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -56,7 +57,7 @@ func main() {
 	// Max time for video clips before interruption.
 	maxtime := 5 * time.Minute
 
-	fs, err := video.NewFilesystem("/tmp/gatecam/")
+	fs, err := video.NewFilesystem("/tmp/gatecam2/")
 	if err != nil {
 		log.Fatalf("Failed to create filesystem: %v", err)
 	}
@@ -93,11 +94,15 @@ func main() {
 		FS: fs,
 	}
 
+	metaws := serve.NewMetaUpdater()
+	fs.Listeners = append(fs.Listeners, metaws) // Receive filesystem updates
+
 	go func() {
 		log.Printf("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
 		http.Handle("/trigger", rec)
 		http.Handle("/events", meta)
+		http.Handle("/eventsws", metaws)
 		http.Handle("/video", serve.NewVideoServer(fs))
 		http.Handle("/thumb", serve.NewThumbServer(fs))
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))

@@ -44,12 +44,18 @@ func NewVThumbProducer() *VThumbProducer {
 				// Output format as libx264
 				"-c:v", "libx264",
 				// Speed up video and resize to thumbnail size.
-				"-vf", "setpts=0.2*PTS,scale=240:135",
+				"-vf", "setpts=0.1*PTS,scale=320:180",
 				// Fast, fairly low quality.
-				"-preset", "ultrafast",
-				"-crf", "30",
+				"-preset", "fast",
+				"-crf", "28",
 				// Keep CPU usage down. Thumbnail conversion doesn't need to be fast.
 				"-threads", "1",
+				// Limit duration to 5s (trim)
+				"-t", "5",
+				// Allow playback on a wider range of devices.
+				"-pix_fmt", "yuv420p",
+				"-profile:v", "baseline",
+				"-level", "3.0",
 				// Explicit format.
 				"-f", "mp4",
 				w.dst+ExtTemp,
