@@ -119,6 +119,10 @@
             </video>
         </div>
         <div class="buttons">
+          <paper-button on-tap="openFullscreen_">
+                  <iron-icon icon="fullscreen"></iron-icon>
+                  Fullscreen
+          </paper-button>
           <a class="nolink" href="/video?id=[[event.ID]]&download=true">
                   <paper-button>
                           <iron-icon icon="file-download"></iron-icon>
@@ -158,6 +162,10 @@
               this.event = e.detail.event;
               this.$.video.src = "/video?id=" + this.event.ID;
               this.$.dialog.open();
+      }
+
+      openFullscreen_(e) {
+              this.$.video.webkitEnterFullScreen();
       }
 
       toggleDrawer_() {
