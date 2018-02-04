@@ -67,7 +67,9 @@ func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
 		// Slow down analysis to limit CPU usage.
 		AnalysisFPS: 1,
 
-		d: gocv.NewBackgroundSubtractorMOG2(),
+		// history=500, threshold=16
+		// TODO: make history based on analysis FPS.
+		d: gocv.NewBackgroundSubtractorMOG2(60, 16),
 
 		blend:   gocv.NewMat(),
 		blendin: gocv.NewMat(),
