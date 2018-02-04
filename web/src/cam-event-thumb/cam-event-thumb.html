@@ -74,7 +74,7 @@
 
       eventClicked_() {
               if (this.event.HaveVideo) {
-                      this.dispatchEvent(new CustomEvent('open-event', {detail: {event: this.event}}));
+                      this.dispatchEvent(new CustomEvent('open-event', {detail: {event: this.event}, bubbles: true, composed: true}));
               }
       }
 
