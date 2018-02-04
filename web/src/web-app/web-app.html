@@ -63,24 +63,26 @@
   <app-drawer-layout id="drawerlayout">
         <app-drawer id="drawer" slot="drawer" swipe-open>
                 <div class="headerpad"></div>
-                <paper-listbox selected="{{page}}" attr-for-selected="page">
-                        <paper-icon-item page="live">
+                <paper-listbox selected="{{route}}" attr-for-selected="data-route">
+                        <paper-icon-item data-route="live">
                                 <iron-icon icon="av:videocam" slot="item-icon"></iron-icon>
                                 Live View
                         </paper-icon-item>
-                        <paper-icon-item page="events">
+                        <paper-icon-item data-route="events">
                                 <iron-icon icon="history" slot="item-icon"></iron-icon>
                                 Event History
                         </paper-icon-item>
                 </paper-listbox>
         </app-drawer>
         <div>
-          <iron-lazy-pages selected="[[page]]" attr-for-selected="data-route">
+          <iron-lazy-pages
+                  selected="[[route]]"
+                  attr-for-selected="data-route">
                   <template is="dom-if" data-route="live">
                           <cam-live></cam-live>
                   </template>
                   <template is="dom-if" data-route="events">
-                          <cam-events page="events"></cam-events>
+                          <cam-events></cam-events>
                   </template>
           </iron-lazy-pages>
         </div>
@@ -98,7 +100,7 @@
       static get is() { return 'web-app'; }
       static get properties() {
         return {
-                page: {
+                route: {
                         type: String,
                         value: "events"
                 }
