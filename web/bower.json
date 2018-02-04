@@ -17,7 +17,8 @@
     "paper-listbox": "PolymerElements/paper-listbox#^2.0.0",
     "paper-item": "PolymerElements/paper-item#^2.0.0",
     "iron-pages": "PolymerElements/iron-pages#^2.0.1",
-    "iron-lazy-pages": "TimvdLippe/iron-lazy-pages#^2.1.1"
+    "iron-lazy-pages": "TimvdLippe/iron-lazy-pages#^2.1.1",
+    "iron-flex-layout": "PolymerElements/iron-flex-layout#^2.0.1"
   },
   "devDependencies": {
     "web-component-tester": "Polymer/web-component-tester#^6.0.0",
