@@ -40,9 +40,25 @@
       #dialog {
               top: 50px;
       }
+      #empty {
+              padding: 10px;
+              margin-left: 20px;
+              color: #666;
+              background-color: #ddd;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+      }
+      #empty > iron-icon {
+              padding-right: 5px;
+      }
     </style>
     <h2>Event History</h2>
     <iron-ajax id="ajax" url="/events" last-response="{{response}}" handle-as="json" auto></iron-ajax>
+    <div id="empty" hidden$="[[!empty_(response.Items)]]">
+          <iron-icon icon="info"></iron-icon>
+          No events recorded.
+    </div>
     <iron-list items="[[reverse_(response.Items)]]" as="item" grid scroll-target="document">
       <template>
         <div class="item">
@@ -106,6 +122,13 @@
               this.event = e.detail.event;
               this.$.video.src = "/video?id=" + this.event.ID;
               this.$.dialog.open();
+      }
+
+      empty_(l) {
+        if(!Array.isArray(l)) {
+                return false;
+        }
+        return l.length == 0;
       }
 
       reverse_(l) {
