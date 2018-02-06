@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+
+	"cam/util"
 )
 
 const (
@@ -36,7 +38,7 @@ func NewVThumbProducer() *VThumbProducer {
 			}
 
 			c := exec.Command(
-				"/usr/local/bin/ffmpeg",
+				util.LocateFFmpegOrDie(),
 				// Configure input from source file.
 				"-i", w.src,
 				// Thumbnails can be choppy to reduce size.

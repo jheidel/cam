@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"cam/serve"
+	"cam/util"
 	"cam/video"
 	"cam/video/process"
 	"cam/video/sink"
@@ -29,11 +30,24 @@ func main() {
 	// TODO migrate to flags once you have a config file.
 	if len(os.Args) < 2 {
 		fmt.Println("How to run:\n\tcapwindow [camera URI]")
+		os.Exit(1)
 		return
 	}
 
 	// parse args
 	uri := os.Args[1]
+
+	ffmpegp, err := util.LocateFFmpeg()
+	if err != nil {
+		fmt.Println("Unable to locate ffmpeg binary", err)
+		fmt.Println("FFmpeg is required for saving video files.")
+		fmt.Println("Either ensure the ffmpeg binary is in $PATH,")
+		fmt.Println("or set the FFMPEG environment variable.")
+		os.Exit(1)
+		return
+	} else {
+		log.Printf("Located ffmpeg binary, %v", ffmpegp)
+	}
 
 	fps := 15
 

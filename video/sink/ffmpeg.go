@@ -1,13 +1,15 @@
 package sink
 
 import (
-	"cam/video/source"
 	"fmt"
 	"image"
 	"log"
 	"os"
 	"os/exec"
 	"time"
+
+	"cam/util"
+	"cam/video/source"
 )
 
 // TODO:
@@ -56,7 +58,7 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 	go func() {
 
 		c := exec.Command(
-			"/usr/local/bin/ffmpeg",
+			util.LocateFFmpegOrDie(),
 			// Configure ffmpeg to read from the opencv pipe.
 			"-f", "rawvideo",
 			"-pixel_format", "bgr24",
