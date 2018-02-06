@@ -70,7 +70,11 @@ Web endpoints:
 
 Websocket for streaming data?
 
+
+# Other golang deps
+
 go get github.com/gorilla/websocket
+go get github.com/pillash/mp4util
 
 
 

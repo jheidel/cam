@@ -57,7 +57,11 @@ func main() {
 	// Max time for video clips before interruption.
 	maxtime := 5 * time.Minute
 
-	fs, err := video.NewFilesystem("/tmp/gatecam2/")
+	fsOpts := video.FilesystemOptions{
+		BasePath: "/tmp/gatecam2/",
+		MaxSize:  100 << 30, // 100 GiB
+	}
+	fs, err := video.NewFilesystem(fsOpts)
 	if err != nil {
 		log.Fatalf("Failed to create filesystem: %v", err)
 	}

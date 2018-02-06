@@ -42,7 +42,7 @@
           <iron-icon icon="info"></iron-icon>
           No events recorded.
     </div>
-    <iron-list items="[[reverse_(response.Items)]]" as="item" grid scroll-target="document">
+    <iron-list items="[[response.Items]]" as="item" grid scroll-target="document">
       <template>
         <div class="item">
           <cam-event-thumb event="[[item]]"></cam-event-thumb>
@@ -78,21 +78,11 @@
         };
       }
 
-      onOpened_() {
-      }
-
       empty_(l) {
         if(!Array.isArray(l)) {
                 return true;
         }
         return l.length === 0;
-      }
-
-      reverse_(l) {
-              if(!Array.isArray(l)) {
-                      return [];
-              }
-              return l.reverse();
       }
     }
 
