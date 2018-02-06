@@ -23,6 +23,24 @@
         text-decoration: none;
         color: inherit;
       }
+      .belowthumb {
+              display: flex;
+              justify-content: space-between;
+              flex-direction: row;
+              align-items: center;
+              padding-left: 5px;
+              padding-right: 5px;
+      }
+      .time {
+              font-size: large;
+      }
+      .small {
+              font-size: x-small;
+      }
+      .duration {
+              color: #888;
+              text-align: right;
+      }
     </style>
     <paper-card>
     <div on-tap="eventClicked_">
@@ -37,12 +55,22 @@
         </div>
       </a>
             </div>
-      <div>
+      <div class="belowthumb">
               <div>
-                [[formatAsDate_(event.Timestamp)]]
+                      <div class="date">
+                        [[formatAsDate_(event.Timestamp)]]
+                      </div>
+                      <div class="time">
+                        [[formatAsTime_(event.Timestamp)]]
+                      </div>
               </div>
-              <div>
-                [[formatAsTime_(event.Timestamp)]]
+              <div class="duration" hidden$="[[!event.HaveVideo]]">
+                      <div class="small">
+                              Duration
+                      </div>
+                      <div>
+                              [[formatDuration_(event.DurationSec)]]
+                      </div>
               </div>
       </div>
     </paper-card>
@@ -63,6 +91,12 @@
                         observer: 'eventChanged_',
                 }
         };
+      }
+
+      formatDuration_(sec) {
+              const m = Math.trunc(sec / 60);
+              const s = sec - m * 60;
+              return m + ":" + (s < 10 ? "0" : "") + s;
       }
 
       formatAsDate_(tsec) {
