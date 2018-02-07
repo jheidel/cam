@@ -2,8 +2,8 @@ package video
 
 import (
 	"github.com/pillash/mp4util"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -86,7 +86,7 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 		videoDurationCache: make(map[string]time.Duration),
 	}
 	go func() {
-		log.Printf("Starting initial filesystem refresh. This may take a while.")
+		log.Infof("Starting initial filesystem refresh. This could take a while.")
 		f.doRefresh() // Initial filesystem scan.
 		rt := time.NewTicker(FilesystemRefreshInterval)
 		gt := time.NewTicker(GarbageCollectionInterval)
@@ -151,7 +151,7 @@ func (f *Filesystem) doRefresh() error {
 			v.VideoPath = p
 			d, err := f.lookupVideoDuration(p)
 			if err != nil {
-				log.Printf("Failed to get duration for %v: %v", p, err)
+				log.Errorf("Failed to get duration for %v: %v", p, err)
 			} else {
 				v.VideoDuration = d
 			}
@@ -169,9 +169,10 @@ func (f *Filesystem) doRefresh() error {
 	}
 
 	et := time.Since(refreshStart)
-	if et > time.Second {
-		log.Printf("Filesystem refresh completed in %v", et)
-		// TODO vlog otherwise.
+	if et < time.Second {
+		log.Debugf("Filesystem refresh completed in %v", et)
+	} else {
+		log.Infof("Filesystem refresh (slow) completed in %v", et)
 	}
 
 	f.l.Lock()
@@ -239,7 +240,7 @@ func (f *Filesystem) doGarbageCollect() {
 		return
 	}
 
-	log.Printf("Garbage collection removed %d records in %v", cleaned, time.Since(gcStart))
+	log.Infof("Garbage collection removed %d records in %v", cleaned, time.Since(gcStart))
 
 	// Filesystem was changed and a refresh is needed.
 	f.Refresh()
@@ -255,7 +256,7 @@ func (f *Filesystem) gcRecord(r *VideoRecord) {
 			return
 		}
 		if err := os.Remove(p); err != nil {
-			log.Printf("Garbage collection failed for %v: %v", p, err)
+			log.Errorf("Garbage collection failed for %v: %v", p, err)
 		}
 	}
 	remove(r.VideoPath)

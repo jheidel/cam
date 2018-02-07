@@ -2,7 +2,7 @@ package serve
 
 import (
 	"github.com/gorilla/websocket"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 )
@@ -57,7 +57,7 @@ func (m *MetaUpdater) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws, err := m.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		if _, ok := err.(websocket.HandshakeError); !ok {
-			log.Println(err)
+			log.WithField("addr", r.RemoteAddr).Errorf("Websocket handshake failed for update stream: %v", err)
 		}
 		return
 	}
@@ -65,10 +65,11 @@ func (m *MetaUpdater) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *MetaUpdater) serve(ws *websocket.Conn) {
-	log.Printf("%v connected to events update socket", ws.RemoteAddr())
+	clog := log.WithField("addr", ws.RemoteAddr())
+	clog.Info("connected to events update socket")
 	defer func() {
 		ws.Close()
-		log.Printf("%v disconnected from events update socket", ws.RemoteAddr())
+		clog.Info("disconnected from events update socket")
 	}()
 	pingTicker := time.NewTicker(pingPeriod)
 	defer pingTicker.Stop()

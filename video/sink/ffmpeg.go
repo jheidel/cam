@@ -2,8 +2,8 @@ package sink
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"image"
-	"log"
 	"os"
 	"os/exec"
 	"time"
@@ -85,6 +85,8 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 
 		var err error
 
+		// TODO convert some of this to structured logging.
+
 		// Allows for debugging ffmpeg in shell.
 		// TODO
 		c.Stdout = os.Stdout
@@ -95,7 +97,7 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 			log.Fatalf("Error getting stdin %v", err)
 		}
 
-		log.Printf("Start writing to '%s' using FFmpeg", path)
+		log.Infof("Start writing to '%s' using FFmpeg", path)
 		if err := c.Start(); err != nil {
 			log.Fatalf("Error starting ffmpeg %v", err)
 		}
@@ -122,7 +124,7 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 		log.Printf("Finished writing %s (error code %v)", path, err)
 
 		if err := os.Rename(f.Path+ExtTemp, f.Path); err != nil {
-			log.Printf("Error moving file to its final destination")
+			log.Errorf("Error moving file to its final destination")
 		}
 		closec <- true
 	}()
@@ -140,6 +142,6 @@ func (f *FFmpegSink) Put(input source.Image) {
 	select {
 	case f.b <- input.Mat.ToBytes():
 	default:
-		log.Printf("WARN: video output frame skip. Insufficient buffer?")
+		log.Warningf("WARN: video output frame skip. Insufficient buffer?")
 	}
 }

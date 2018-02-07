@@ -1,8 +1,8 @@
 package source
 
 import (
+	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
-	"log"
 )
 
 type MatPool struct {

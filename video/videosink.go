@@ -4,7 +4,7 @@ import (
 	"cam/video/process"
 	"cam/video/sink"
 	"cam/video/source"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 type VideoSinkProducer struct {
@@ -27,9 +27,9 @@ func (p *VideoSinkProducer) New(trigger source.Image) sink.Sink {
 		defer trigger.Release()
 		err := process.WriteThumb(r.ThumbPath, trigger)
 		if err != nil {
-			log.Printf("failed to generate thubmnail: %v", err)
+			log.Errorf("failed to generate thubmnail: %v", err)
 		} else {
-			log.Printf("thumbnail written to %v", r.ThumbPath)
+			log.Infof("thumbnail written to %v", r.ThumbPath)
 		}
 		p.Filesystem.Refresh()
 	}()

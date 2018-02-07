@@ -1,7 +1,7 @@
 package process
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
 
@@ -67,8 +67,10 @@ func NewVThumbProducer() *VThumbProducer {
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 
+			// TODO maybe context logger to be cleaner?
+
 			if err := c.Start(); err != nil {
-				log.Printf("Failed to start thumbnail conversion for %v: %v", w, err)
+				log.Errorf("Failed to start thumbnail conversion for %v: %v", w, err)
 				continue
 			}
 
@@ -86,12 +88,12 @@ func NewVThumbProducer() *VThumbProducer {
 				// TODO clean this up.
 				if err == nil {
 					if err := os.Rename(w.dst+ExtTemp, w.dst); err != nil {
-						log.Printf("Error moving thumbnail to its final destination")
+						log.Errorf("Error moving thumbnail to its final destination")
 					} else {
-						log.Printf("Thumbnail conversion succeeded for %v", w)
+						log.Infof("Thumbnail conversion succeeded for %v", w)
 					}
 				} else {
-					log.Printf("Thumbnail conversion failed for %v: %v", w, err)
+					log.Errorf("Thumbnail conversion failed for %v: %v", w, err)
 				}
 				w.donec <- true
 			}
@@ -109,7 +111,7 @@ func (f *VThumbProducer) Process(src, dst string) <-chan bool {
 	select {
 	case f.c <- w:
 	default:
-		log.Printf("WARN: thumbnail processing dropped due to backlog")
+		log.Warningf("thumbnail processing dropped due to backlog")
 		return nil
 	}
 	return w.donec

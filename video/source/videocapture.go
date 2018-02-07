@@ -2,9 +2,9 @@ package source
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
 	"image"
-	"log"
 	"time"
 )
 
@@ -114,21 +114,21 @@ func (v *VideoCapture) Get() <-chan Image {
 					m = v.pool.NewMat()
 				} else {
 					// TODO remove
-					log.Printf("DEBUG: failed read")
+					log.Warning("Failed read from capture source")
 				}
 
 				if time.Now().After(v.lastFetch.Add(disconnectDelay)) {
 					v.cap.Close()
 					v.cap = nil
-					log.Printf("Closed capture source %s due to no frame for %d seconds", v.URI, disconnectDelay.Seconds())
+					log.Errorf("Closed capture source %s due to no frame for %d seconds", v.URI, disconnectDelay.Seconds())
 				}
 			} else {
-				log.Printf("Attempting connection to capture source %s", v.URI)
+				log.Infof("Attempting connection to capture source %s", v.URI)
 				if err := v.connect(); err != nil {
-					log.Printf("Connection to %s failed: %v", v.URI, err)
+					log.Errorf("Connection to %s failed: %v", v.URI, err)
 					d = retryDelay
 				} else {
-					log.Printf("Connected to %s, resolution %dx%d", v.URI, v.sz.X, v.sz.Y)
+					log.Infof("Connected to %s, resolution %dx%d", v.URI, v.sz.X, v.sz.Y)
 				}
 			}
 

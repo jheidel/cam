@@ -2,8 +2,8 @@ package sink
 
 import (
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
-	"log"
 	"net/http"
 	"sync"
 )
@@ -86,7 +86,7 @@ func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("MJPEG stream:", r.RemoteAddr, "connected to", id)
+	log.WithField("addr", r.RemoteAddr).Infof("MJPEG stream connected to %v", id)
 	w.Header().Add("Content-Type", "multipart/x-mixed-replace;boundary="+boundaryWord)
 
 	c := make(chan []byte)
@@ -107,7 +107,7 @@ func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	stream.lock.Lock()
 	delete(stream.m, c)
 	stream.lock.Unlock()
-	log.Println("MJPEG stream:", r.RemoteAddr, "disconnected from", id)
+	log.WithField("addr", r.RemoteAddr).Infof("MJPEG stream disconnected from %v", id)
 }
 
 type MJPEGStream struct {
@@ -133,7 +133,7 @@ func (s *MJPEGStream) Put(input gocv.Mat) {
 
 	jpeg, err := gocv.IMEncode(".jpg", input)
 	if err != nil {
-		log.Printf("Error encoding to JPG for MJPEG stream %v: %v", s.id, err)
+		log.Errorf("Error encoding to JPG for MJPEG stream %v: %v", s.id, err)
 		return
 	}
 

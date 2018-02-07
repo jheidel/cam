@@ -75,6 +75,7 @@ Websocket for streaming data?
 
 go get github.com/gorilla/websocket
 go get github.com/pillash/mp4util
+go get github.com/sirupsen/logrus
 
 
 

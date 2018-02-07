@@ -1,8 +1,8 @@
 package sink
 
 import (
+	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
-	"log"
 	"time"
 
 	"cam/video/source"
@@ -61,7 +61,7 @@ func (f *FPSNormalize) Put(input source.Image) {
 	for {
 		f.curFrame = nextFrame
 		if input.Time.Sub(f.curFrame) > maxFrameFill {
-			log.Printf("Exceeded fps normalize frame fill. Output stream will skip.")
+			log.Warningf("Exceeded fps normalize frame fill. Output stream will skip.")
 			f.curFrame = input.Time
 		}
 

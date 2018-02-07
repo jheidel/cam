@@ -2,10 +2,10 @@ package process
 
 import (
 	"cam/video/sink"
+	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
 	"image"
 	"image/color"
-	"log"
 	"time"
 )
 
@@ -101,7 +101,7 @@ func (m *Motion) loop() {
 
 	motionEnabled := false
 	time.AfterFunc(StartupTimeout, func() {
-		log.Printf("Now watching for motion.")
+		log.Infof("Now watching for motion.")
 		motionEnabled = true
 	})
 
@@ -171,7 +171,8 @@ func (m *Motion) loop() {
 		}
 
 		if motionEnabled && len(contours) > 0 {
-			log.Printf("Detected motion, %d contours", len(contours))
+			// TODO make this a metrics stream.
+			log.Debugf("Detected motion, %d contours", len(contours))
 			if m.Trigger != nil {
 				m.Trigger.Trigger()
 			}

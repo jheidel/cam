@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"cam/video/process"
 	"cam/video/sink"
 	"cam/video/source"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -29,24 +30,30 @@ func main() {
 
 	// TODO migrate to flags once you have a config file.
 	if len(os.Args) < 2 {
-		fmt.Println("How to run:\n\tcapwindow [camera URI]")
+		fmt.Println("How to run:\n\t./main [camera URI]")
 		os.Exit(1)
 		return
 	}
+
+	// Configure logging.
+	customFormatter := new(log.TextFormatter)
+	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
+	customFormatter.FullTimestamp = true
+	log.SetFormatter(customFormatter)
 
 	// parse args
 	uri := os.Args[1]
 
 	ffmpegp, err := util.LocateFFmpeg()
 	if err != nil {
-		fmt.Println("Unable to locate ffmpeg binary", err)
+		log.Errorf("Unable to locate ffmpeg binary: %v", err)
 		fmt.Println("FFmpeg is required for saving video files.")
 		fmt.Println("Either ensure the ffmpeg binary is in $PATH,")
 		fmt.Println("or set the FFMPEG environment variable.")
 		os.Exit(1)
 		return
 	} else {
-		log.Printf("Located ffmpeg binary, %v", ffmpegp)
+		log.Infof("Located ffmpeg binary, %v", ffmpegp)
 	}
 
 	fps := 15
@@ -116,7 +123,7 @@ func main() {
 	fs.Listeners = append(fs.Listeners, metaws) // Receive filesystem updates
 
 	go func() {
-		log.Printf("Hosting web frontend on port %d", *port)
+		log.Infof("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
 		http.Handle("/trigger", rec)
 		http.Handle("/events", meta)
@@ -126,7 +133,9 @@ func main() {
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))
 		// TODO link to polymer build directory.
 		http.Handle("/", http.FileServer(http.Dir("./web/build/default")))
-		log.Println(http.ListenAndServe(fmt.Sprintf(":%d", *port), nil))
+
+		err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
+		log.Infof("HTTP server exited with status %v", err)
 	}()
 
 	for {
@@ -145,7 +154,7 @@ func main() {
 			rec.Put(i)
 			i.Release()
 		case sig := <-sigs:
-			log.Println("Caught signal", sig)
+			log.Warningf("Caught signal %v", sig)
 			return
 		}
 	}
