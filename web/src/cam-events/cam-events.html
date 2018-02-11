@@ -9,14 +9,14 @@
 
 <link rel="import" href="../cam-event-thumb/cam-event-thumb.html">
 
+<script src="../../bower_components/moment/moment.js"></script>
+<script src="../../bower_components/numeral/numeral.js"></script>
+
 <dom-module id="cam-events">
   <template>
     <style>
       .item {
         padding: 10px;
-      }
-      h2 {
-        padding-left: 10px;
       }
       #empty {
               padding: 10px;
@@ -34,9 +34,42 @@
       #empty[hidden] {
               display: none;
       }
+      .header {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 10px;
+
+        display: flex;
+        justify-content: space-between;
+      }
+      .header > div {
+        font-size: small;
+      }
+      th {
+              text-align: left;
+      }
     </style>
-    <div id="target"></div>
-    <h2>Event History</h2>
+    <div class="header">
+            <h2>Event History</h2>
+            <div hidden$="[[empty_(response.Items)]]">
+                    <table>
+                            <tr>
+                                    <th>Recorded</th>
+                                    <td>[[formatCount_(response.ItemsCount, 'event', 'events')]]</td>
+                            </tr>
+                            <tr>
+                                    <th>Total Size</th>
+                                    <td>[[formatBytes_(response.ItemsTotalSize)]]</td>
+                            </tr>
+                            <tr>
+                                    <th>Oldest</th>
+                                    <td>[[formatTimestamp_(response.OldestTimestamp)]]</td>
+                            </tr>
+                    </table>
+            </div>
+    </div>
+
+
     <iron-ajax id="ajax" url="/events" last-response="{{response}}" handle-as="json" auto></iron-ajax>
     <div id="empty" hidden$="[[!empty_(response.Items)]]">
           <iron-icon icon="info"></iron-icon>
@@ -83,6 +116,19 @@
                 return true;
         }
         return l.length === 0;
+      }
+
+      formatTimestamp_(tsec) {
+              return moment.unix(tsec).format("M/D/YYYY h:ss A");
+      }
+
+      formatBytes_(b) {
+              return numeral(b).format('0.0 b');
+      }
+      
+      formatCount_(n, s, p) {
+              const lbl = n == 1 ? s : p;
+              return numeral(n).format('0,0') + " " + lbl;
       }
     }
 
