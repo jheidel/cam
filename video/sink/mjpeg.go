@@ -138,18 +138,18 @@ func (s *MJPEGStream) Put(input gocv.Mat) {
 	}
 
 	header := fmt.Sprintf(headerf, len(jpeg))
-	if len(s.frame) < len(jpeg)+len(header) {
-		s.frame = make([]byte, (len(jpeg)+len(header))*2)
-	}
 
-	copy(s.frame, header)
-	copy(s.frame[len(header):], jpeg)
+	// TODO: optimize to avoid the make+copy (tricky with multiple consumers)
+	l := len(header) + len(jpeg)
+	b := make([]byte, l)
+	copy(b, header)
+	copy(b[len(header):], jpeg)
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	for c := range s.m {
 		select {
-		case c <- s.frame[:(len(header) + len(jpeg))]:
+		case c <- b:
 		default:
 			// Skip listeners not ready for next frame.
 		}
