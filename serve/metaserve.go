@@ -20,6 +20,10 @@ type MetaEntry struct {
 
 type MetaResponse struct {
 	Items []*MetaEntry
+
+	ItemsTotalSize  int64
+	ItemsCount      int
+	OldestTimestamp int64
 }
 
 func toMetaEntry(r *video.VideoRecord) *MetaEntry {
@@ -38,12 +42,17 @@ type MetaServer struct {
 }
 
 func (s *MetaServer) BuildResponse() *MetaResponse {
-	resp := &MetaResponse{}
-
 	records := s.FS.GetRecords()
+
+	resp := &MetaResponse{}
+	var sz int64
 	for _, r := range records {
 		resp.Items = append(resp.Items, toMetaEntry(r))
+		sz += r.Size
+		resp.OldestTimestamp = r.Time.Unix()
 	}
+	resp.ItemsTotalSize = sz
+	resp.ItemsCount = len(records)
 	return resp
 }
 
