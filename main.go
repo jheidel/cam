@@ -119,6 +119,10 @@ func main() {
 		FS: fs,
 	}
 
+	delete := &serve.DeleteServer{
+		FS: fs,
+	}
+
 	metaws := serve.NewMetaUpdater()
 	fs.Listeners = append(fs.Listeners, metaws) // Receive filesystem updates
 
@@ -128,6 +132,7 @@ func main() {
 		http.Handle("/trigger", rec)
 		http.Handle("/events", meta)
 		http.Handle("/eventsws", metaws)
+		http.Handle("/delete", delete)
 		http.Handle("/video", serve.NewVideoServer(fs))
 		http.Handle("/thumb", serve.NewThumbServer(fs))
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))

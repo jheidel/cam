@@ -45,6 +45,9 @@ type VideoRecord struct {
 
 	// Combined size of this record on disk.
 	Size int64
+
+	// Reference to parent.
+	fs *Filesystem
 }
 
 // TODO json version for frontend.
@@ -114,6 +117,8 @@ func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 		VideoPath:  base + ExtVideo,
 		ThumbPath:  base + ExtThumb,
 		VThumbPath: base + ExtVThumb,
+
+		fs: f,
 	}
 }
 
@@ -142,6 +147,8 @@ func (f *Filesystem) doRefresh() error {
 			v = &VideoRecord{
 				Time: t,
 				ID:   id,
+
+				fs: f,
 			}
 		}
 
@@ -232,7 +239,7 @@ func (f *Filesystem) doGarbageCollect() {
 		}
 
 		if overSize() || overAge() {
-			f.gcRecord(r)
+			r.Delete()
 			cleaned += 1
 		}
 	}
@@ -246,9 +253,9 @@ func (f *Filesystem) doGarbageCollect() {
 	f.Refresh()
 }
 
-func (f *Filesystem) gcRecord(r *VideoRecord) {
+func (r *VideoRecord) Delete() {
 	if r.VideoPath != "" {
-		delete(f.videoDurationCache, r.VideoPath)
+		delete(r.fs.videoDurationCache, r.VideoPath)
 	}
 
 	remove := func(p string) {
