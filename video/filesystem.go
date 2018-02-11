@@ -269,6 +269,8 @@ func (r *VideoRecord) Delete() {
 	remove(r.VideoPath)
 	remove(r.ThumbPath)
 	remove(r.VThumbPath)
+
+	log.Infof("Deleted event %v", r.ID)
 }
 
 // Refresh triggers a manual refresh of the filesystem records.
