@@ -76,20 +76,21 @@ Websocket for streaming data?
 go get github.com/gorilla/websocket
 go get github.com/pillash/mp4util
 go get github.com/sirupsen/logrus
+go get github.com/elazarl/go-bindata-assetfs
 
+# Other needed tools
+
+sudo apt-get install go-bindata
+go-bindata web/default/build
 
 
 # Installing Polymer
 
 ```
-
 sudo apt-get install npm
 
 sudo npm install -g polymer-cli
 sudo npm install -g bower
 sudo apt-get install default-jre
-
-
-
 ```
 

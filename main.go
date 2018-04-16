@@ -18,6 +18,7 @@ import (
 	"cam/video/sink"
 	"cam/video/source"
 
+	assetfs "github.com/elazarl/go-bindata-assetfs"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -136,8 +137,10 @@ func main() {
 		http.Handle("/video", serve.NewVideoServer(fs))
 		http.Handle("/thumb", serve.NewThumbServer(fs))
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))
-		// TODO link to polymer build directory.
-		http.Handle("/", http.FileServer(http.Dir("./web/build/default")))
+		// TODO web prefix as flag instead?
+		http.Handle("/",
+			http.FileServer(
+				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))
 
 		err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
 		log.Infof("HTTP server exited with status %v", err)
