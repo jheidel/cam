@@ -6,9 +6,7 @@ set -x
 set -e
 
 # Compile polymer frontend
-pushd web
-polymer build --js-minify --css-minify --html-minify
-popd
+(cd web && polymer build --js-minify --css-minify --html-minify)
 
 # Generate bindata.go file from polymer output
 go-bindata web/build/default/...

@@ -73,7 +73,7 @@ func (v *VideoCapture) connect() error {
 	m := gocv.NewMat()
 	defer m.Close()
 
-	if ok := cap.Read(m); !ok {
+	if ok := cap.Read(&m); !ok {
 		return fmt.Errorf("Failed to grab test image")
 	}
 
@@ -107,7 +107,7 @@ func (v *VideoCapture) Get() <-chan Image {
 					Time: time.Now(),
 					pool: v.pool,
 				}
-				if ok := v.cap.Read(i.Mat); ok {
+				if ok := v.cap.Read(&i.Mat); ok {
 					c <- i
 
 					v.lastFetch = i.Time

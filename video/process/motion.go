@@ -49,10 +49,10 @@ type Motion struct {
 
 func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
 	mask := gocv.NewMatWithSize(sz.Y, sz.X, gocv.MatTypeCV8UC3)
-	gocv.Rectangle(mask, image.Rectangle{Min: image.Point{}, Max: sz}, color.RGBA{0, 0, 0, 0}, -1)
+	gocv.Rectangle(&mask, image.Rectangle{Min: image.Point{}, Max: sz}, color.RGBA{0, 0, 0, 0}, -1)
 
 	bounds := []image.Point{{600, 550}, {1300, 550}, {1900, 1050}, {120, 1050}}
-	gocv.FillPoly(mask, bounds, color.RGBA{255, 255, 255, 255})
+	gocv.FillPoly(&mask, [][]image.Point{bounds}, color.RGBA{255, 255, 255, 255})
 
 	// TODO fill the mask.
 
@@ -114,7 +114,7 @@ func (m *Motion) loop() {
 			input.CopyTo(m.blend)
 			first = false
 		} else {
-			gocv.AddWeighted(input, m.BlendRatio, m.blend, 1-m.BlendRatio, 0.0, m.blend)
+			gocv.AddWeighted(input, m.BlendRatio, m.blend, 1-m.BlendRatio, 0.0, &m.blend)
 		}
 
 		// TODO draw on source image, or expose bounding rects.
@@ -137,7 +137,7 @@ func (m *Motion) loop() {
 
 		debug.Put("mask", m.mask)
 
-		gocv.BitwiseAnd(m.blendin, m.mask, m.blendin)
+		gocv.BitwiseAnd(m.blendin, m.mask, &m.blendin)
 		debug.Put("masked", m.blendin)
 
 		inputcrop := m.blendin.Region(m.crop)
@@ -148,26 +148,26 @@ func (m *Motion) loop() {
 		//debug.Put("blurred", m.m1)
 
 		//m.d.Apply(m.m1, m.m2)
-		m.d.Apply(inputcrop, m.m2)
+		m.d.Apply(inputcrop, &m.m2)
 		debug.Put("motion", m.m2)
 
 		// was 128
 		// day: 128
 		// night: 1
 		// Maybe be smart and turn this on only at night?
-		gocv.Threshold(m.m2, m.m3, 128, 255, gocv.ThresholdBinary)
+		gocv.Threshold(m.m2, &m.m3, 128, 255, gocv.ThresholdBinary)
 		debug.Put("motionthresh", m.m3)
 
 		// TODO separate
-		gocv.Erode(m.m3, m.m3, m.sts)
+		gocv.Erode(m.m3, &m.m3, m.sts)
 		debug.Put("erode", m.m3)
-		gocv.Dilate(m.m3, m.m3, m.stl)
+		gocv.Dilate(m.m3, &m.m3, m.stl)
 		debug.Put("dilate", m.m3)
 
 		contours := gocv.FindContours(m.m3, gocv.RetrievalList, gocv.ChainApproxSimple)
 		for _, contour := range contours {
 			bounds := gocv.BoundingRect(contour)
-			gocv.Rectangle(m.draw, bounds.Add(m.crop.Min), color.RGBA{255, 0, 0, 255}, 2)
+			gocv.Rectangle(&m.draw, bounds.Add(m.crop.Min), color.RGBA{255, 0, 0, 255}, 2)
 		}
 
 		if motionEnabled && len(contours) > 0 {

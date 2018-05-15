@@ -27,9 +27,9 @@ func DrawTimestamp(name string, img source.Image) source.Image {
 
 	pad := 2
 
-	gocv.Rectangle(img.Mat, image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: sz.X + pad*2, Y: sz.Y + pad*2}}, colorBG, -1)
+	gocv.Rectangle(&img.Mat, image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: sz.X + pad*2, Y: sz.Y + pad*2}}, colorBG, -1)
 
-	gocv.PutText(img.Mat, text, image.Point{X: pad, Y: sz.Y + pad}, font, scale, colorTime, thickness)
+	gocv.PutText(&img.Mat, text, image.Point{X: pad, Y: sz.Y + pad}, font, scale, colorTime, thickness)
 
 	return img
 }

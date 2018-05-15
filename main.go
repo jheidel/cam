@@ -80,7 +80,7 @@ func main() {
 	maxtime := 5 * time.Minute
 
 	fsOpts := video.FilesystemOptions{
-		BasePath: "/tmp/gatecam2/",
+		BasePath: "/home/jeff/db/",
 		MaxSize:  100 << 30, // 100 GiB
 	}
 	fs, err := video.NewFilesystem(fsOpts)

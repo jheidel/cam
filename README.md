@@ -7,10 +7,22 @@ Work in progress. Not yet usable.
 # Installation
 
  - Build and install FFMPEG from source
-  - TODO: details
+
+```
+git clone https://git.ffmpeg.org/ffmpeg.git ffmpeg
+git checkout release/4.0
+./configure --enable-gpl --enable-libx264 --enable-shared --enable-static
+make -j 4
+sudo make install
+sudo ldconfig
+
+# Test
+ffmpeg -version
+```
+
+
  - Follow gocv installation (https://github.com/hybridgroup/gocv#how-to-install)
-  - libjasper needs to be removed from Makefile for `make deps` to work on
-    Ubuntu 17.10
+  - Make sure `FFMPEG: YES` during cmake, otherwise `Read` will fail.
 
 # Building
 
