@@ -212,11 +212,6 @@ func (f *Filesystem) lookupVideoDuration(path string) (time.Duration, error) {
 }
 
 func (f *Filesystem) doGarbageCollect() {
-	if f.Options.MaxSize == 0 {
-		// Garbage collection disabled.
-		return
-	}
-
 	gcStart := time.Now()
 
 	var total int64
@@ -225,7 +220,7 @@ func (f *Filesystem) doGarbageCollect() {
 		total += r.Size
 
 		overSize := func() bool {
-			if f.Options.MaxAge == 0 {
+			if f.Options.MaxSize == 0 {
 				return false // Disabled
 			}
 			return total > f.Options.MaxSize
