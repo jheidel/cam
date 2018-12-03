@@ -1,0 +1,153 @@
+import { PolymerElement } from '@polymer/polymer/polymer-element.js';
+import '@polymer/paper-card/paper-card.js';
+import { html } from '@polymer/polymer/lib/utils/html-tag.js';
+import moment from 'moment/src/moment.js';
+/**
+ * @customElement
+ * @polymer
+ */
+class CamEventThumb extends PolymerElement {
+  static get template() {
+    return html`
+    <style>
+      .thumbbox {
+        background-color: black;
+        background-size: cover;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+      }
+      .thumbsize {
+        width: 320px;
+        height: 180px;
+      }
+      .tlink {
+        text-decoration: none;
+        color: inherit;
+      }
+      .belowthumb {
+              display: flex;
+              justify-content: space-between;
+              flex-direction: row;
+              align-items: center;
+              padding-left: 5px;
+              padding-right: 5px;
+      }
+      .time {
+              font-size: large;
+      }
+      .small {
+              font-size: x-small;
+      }
+      .duration {
+              color: #888;
+              text-align: right;
+      }
+    </style>
+    <paper-card>
+    <div on-tap="eventClicked_">
+      <a class="tlink" href="javascript:void(0);">
+        <div id="tbox" class="thumbbox thumbsize" on-mouseover="hoverVideo_" on-mouseout="hideVideo_">
+          <video id="vthumb" class="thumbsize" loop="" preload="none" autoplay="" hidden="true">
+                  HTML5 video tag unsupported.
+          </video>
+          <template is="dom-if" if="[[showEmpty_(event)]]">
+            <div>Preview Unavailable</div>
+          </template>
+        </div>
+      </a>
+            </div>
+      <div class="belowthumb">
+              <div>
+                      <div class="date">
+                        [[formatAsDate_(event.Timestamp)]]
+                      </div>
+                      <div class="time">
+                        [[formatAsTime_(event.Timestamp)]]
+                      </div>
+              </div>
+              <div class="duration" hidden\$="[[!event.HaveVideo]]">
+                      <div class="small">
+                              Duration
+                      </div>
+                      <div>
+                              [[formatDuration_(event.DurationSec)]]
+                      </div>
+              </div>
+      </div>
+    </paper-card>
+`;
+  }
+
+  static get is() { return 'cam-event-thumb'; }
+  static get properties() {
+    return {
+            event: {
+                    type: Object,
+                    value: null,
+                    observer: 'eventChanged_',
+            }
+    };
+  }
+
+  formatDuration_(sec) {
+          const m = Math.trunc(sec / 60);
+          const s = sec - m * 60;
+          return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  formatAsDate_(tsec) {
+          return moment.unix(tsec).format("dddd, MMM D, YYYY");
+  }
+  formatAsTime_(tsec) {
+          return moment.unix(tsec).format("h:mm A");
+  }
+
+  eventClicked_() {
+          if (this.event.HaveVideo) {
+                  this.dispatchEvent(new CustomEvent('open-event', {detail: {event: this.event}, bubbles: true, composed: true}));
+          }
+  }
+
+  eventChanged_(newValue, oldValue) {
+          if (!!newValue && newValue.HaveThumb) {
+                  this.$.tbox.style.backgroundImage = "url(/thumb?id=" + newValue.ID + ")";
+          } else {
+                  this.$.tbox.style.backgroundImage = "";
+                        }
+  }
+
+  hoverVideo_() {
+          if (!this.showVThumb_(this.event)) {
+                            return;
+                        }
+          this.$.vthumb.src = "/vthumb?id=" + this.event.ID;
+                        this.$.vthumb.hidden = false;
+  }
+
+  hideVideo_() {
+          if (!this.showVThumb_(this.event)) {
+                            return;
+                        }
+                        this.$.vthumb.hidden = true;
+          this.$.vthumb.src = "";
+  }
+
+  showVThumb_(e) {
+          if (!e) {
+                  return false;
+          }   
+          return e.HaveVThumb;
+  }
+
+  showEmpty_(e) {
+          if (!e) {
+                  return false;
+          }   
+          return !e.HaveThumb;
+  }
+}
+
+window.customElements.define(CamEventThumb.is, CamEventThumb);
