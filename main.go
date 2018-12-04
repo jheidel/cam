@@ -109,7 +109,19 @@ func main() {
 	rec := video.NewRecorder(vp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime, MaxRecordTime: maxtime})
 	defer rec.Close()
 
-	motion := process.NewMotion(mjpegServer, cap.Size())
+	prototxt, err := Asset("models/MobileNetSSD_deploy.prototxt")
+	if err != nil {
+		log.Fatalf("Failed to load model prototxt: %v", err)
+	}
+
+	caffeModel, err := Asset("models/MobileNetSSD_deploy.caffemodel")
+	if err != nil {
+		log.Fatalf("Failed to load caffemodel: %v", err)
+	}
+
+	classifier := process.NewClassifier(prototxt, caffeModel)
+
+	motion := process.NewMotion(mjpegServer, classifier, cap.Size())
 	// Trigger recorder on motion.
 	motion.Trigger = rec
 

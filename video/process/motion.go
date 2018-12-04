@@ -45,9 +45,11 @@ type Motion struct {
 	blend, blendin, draw, m0, m1, m2, m3, st1, sts, stl, mask gocv.Mat
 
 	crop image.Rectangle
+
+	classifier *Classifier
 }
 
-func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
+func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Motion {
 	mask := gocv.NewMatWithSize(sz.Y, sz.X, gocv.MatTypeCV8UC3)
 	gocv.Rectangle(&mask, image.Rectangle{Min: image.Point{}, Max: sz}, color.RGBA{0, 0, 0, 0}, -1)
 
@@ -85,6 +87,8 @@ func NewMotion(ms *sink.MJPEGServer, sz image.Point) *Motion {
 		// TODO allow reconfiguring structring element.
 		sts: gocv.GetStructuringElement(gocv.MorphCross, image.Point{X: 10, Y: 10}),
 		stl: gocv.GetStructuringElement(gocv.MorphEllipse, image.Point{X: 30, Y: 30}),
+
+		classifier: classifier,
 	}
 
 	// Fill mat buffer.
@@ -179,6 +183,12 @@ func (m *Motion) loop() {
 		}
 
 		debug.Put("motiondraw", m.draw)
+
+		// TODO, modify triggering event system to do classification only if
+		// triggered.
+		if d := m.classifier.Classify(input); d != nil {
+			log.Infof("Classified %s (%.2f confidence)", d.Class, d.Confidence)
+		}
 
 		// TODO: export this as a streaming stat.
 		// log.Printf("Elapsed: %v", time.Now().Sub(s))
