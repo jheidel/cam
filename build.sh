@@ -9,10 +9,7 @@ set -e
 (cd web && polymer build --js-minify --css-minify --html-minify)
 
 # Generate bindata.go file from polymer output
-go-bindata web/build/default/...
-
-# Configure environment for building with OpenCV
-source $GOROOT/gocv.io/x/gocv/env.sh
+go-bindata web/build/default/... models/...
 
 # Build standalone binary with resources embedded
 go build

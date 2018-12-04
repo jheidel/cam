@@ -26,7 +26,7 @@ func (i *Image) CloneToPool(pool *MatPool) Image {
 		Time: i.Time,
 		pool: pool,
 	}
-	i.Mat.CopyTo(n.Mat)
+	i.Mat.CopyTo(&n.Mat)
 	return n
 }
 

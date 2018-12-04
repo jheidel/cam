@@ -40,8 +40,12 @@ type Classifier struct {
 }
 
 func NewClassifier(prototxt, caffeModel []byte) *Classifier {
+	net, err := gocv.ReadNetFromCaffeBytes(prototxt, caffeModel)
+	if err != nil {
+		log.Fatalf("Failed to read caffe model to net: %v", err)
+	}
 	return &Classifier{
-		net:   gocv.ReadNetFromCaffeBytes(prototxt, caffeModel),
+		net:   net,
 		small: gocv.NewMat(),
 	}
 }

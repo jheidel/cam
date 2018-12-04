@@ -46,7 +46,7 @@ func (f *FPSNormalize) Close() {
 func (f *FPSNormalize) Put(input source.Image) {
 	if f.curFrame.IsZero() {
 		f.sink.Put(input)
-		input.Mat.CopyTo(f.last)
+		input.Mat.CopyTo(&f.last)
 		f.curFrame = input.Time
 		return
 	}
@@ -73,7 +73,7 @@ func (f *FPSNormalize) Put(input source.Image) {
 				// TODO pool propagate?
 			}
 			f.sink.Put(i)
-			input.Mat.CopyTo(f.last)
+			input.Mat.CopyTo(&f.last)
 			return
 		} else {
 			// Missed a frame. Rewrite last frame.

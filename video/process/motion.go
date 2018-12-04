@@ -115,14 +115,14 @@ func (m *Motion) loop() {
 		s := time.Now()
 
 		if first {
-			input.CopyTo(m.blend)
+			input.CopyTo(&m.blend)
 			first = false
 		} else {
 			gocv.AddWeighted(input, m.BlendRatio, m.blend, 1-m.BlendRatio, 0.0, &m.blend)
 		}
 
 		// TODO draw on source image, or expose bounding rects.
-		m.blend.CopyTo(m.blendin)
+		m.blend.CopyTo(&m.blendin)
 
 		// TODO: limit FPS here.
 
@@ -137,7 +137,7 @@ func (m *Motion) loop() {
 
 		debug.Put("blended", m.blendin)
 
-		m.blendin.CopyTo(m.draw)
+		m.blendin.CopyTo(&m.draw)
 
 		debug.Put("mask", m.mask)
 
@@ -201,7 +201,7 @@ func (m *Motion) loop() {
 // TODO make this take Image so it's time aware.
 func (m *Motion) Process(input gocv.Mat) {
 	mat := <-m.a
-	input.CopyTo(mat)
+	input.CopyTo(&mat)
 
 	select {
 	case m.c <- mat:

@@ -14,7 +14,7 @@ type Video struct {
 }
 
 func NewVideo(path string, fps int, width, height int) (*Video, error) {
-	w, err := gocv.VideoWriterFile(path, "HFYU", float64(fps), width, height)
+	w, err := gocv.VideoWriterFile(path, "HFYU", float64(fps), width, height, true)
 	if err != nil {
 		return nil, err
 	}
