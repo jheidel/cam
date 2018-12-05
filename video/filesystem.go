@@ -1,6 +1,7 @@
 package video
 
 import (
+	"encoding/json"
 	"github.com/pillash/mp4util"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -21,6 +22,9 @@ const (
 	// FileTimeLayout defines the format of filenames.
 	// See https://golang.org/src/time/format.go.
 	FileTimeLayout = "20060102-150405Z0700"
+
+	// CheckpointFile is the name of the serialized filesystem representation containing record metadata.
+	CheckpointFile = "metadata.json"
 )
 
 var (
@@ -36,6 +40,7 @@ type VideoRecord struct {
 	Time time.Time
 	ID   string
 
+	// TODO: make these relative?
 	VideoPath  string
 	ThumbPath  string
 	VThumbPath string
@@ -67,13 +72,13 @@ type FilesystemOptions struct {
 }
 
 type Filesystem struct {
-	Options FilesystemOptions
-
 	Records map[string]*VideoRecord
+
+	options FilesystemOptions
 
 	videoDurationCache map[string]time.Duration
 
-	Listeners []FilesystemListener
+	listeners []FilesystemListener
 
 	refreshc chan bool
 	l        sync.Mutex
@@ -84,7 +89,7 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 		return nil, err
 	}
 	f := &Filesystem{
-		Options:            opts,
+		options:            opts,
 		refreshc:           make(chan bool, 1),
 		videoDurationCache: make(map[string]time.Duration),
 	}
@@ -109,7 +114,7 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 
 func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 	id := t.Format(FileTimeLayout)
-	base := filepath.Join(f.Options.BasePath, id)
+	base := filepath.Join(f.options.BasePath, id)
 	return &VideoRecord{
 		Time: t,
 		ID:   id,
@@ -122,11 +127,25 @@ func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 	}
 }
 
+func (f *Filesystem) saveCheckpoint() error {
+	p := filepath.Join(f.options.BasePath, CheckpointFile)
+	b, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(p, b, 0660); err != nil {
+		return err
+	}
+	return nil
+}
+
+// TODO implement checkpoint restore.
+
 func (f *Filesystem) doRefresh() error {
 	refreshStart := time.Now()
 	m := make(map[string]*VideoRecord)
 
-	files, err := ioutil.ReadDir(f.Options.BasePath)
+	files, err := ioutil.ReadDir(f.options.BasePath)
 	if err != nil {
 		return err
 	}
@@ -152,7 +171,7 @@ func (f *Filesystem) doRefresh() error {
 			}
 		}
 
-		p := filepath.Join(f.Options.BasePath, b)
+		p := filepath.Join(f.options.BasePath, b)
 		switch {
 		case strings.HasSuffix(b, ExtVideo):
 			v.VideoPath = p
@@ -184,15 +203,22 @@ func (f *Filesystem) doRefresh() error {
 
 	f.l.Lock()
 	defer f.l.Unlock()
+
+	// TODO: equal might need to change if additional metadata is stored in records...
+
 	equal := reflect.DeepEqual(f.Records, m)
 	f.Records = m
 
 	if !equal {
 		go func() {
-			for _, listener := range f.Listeners {
+			for _, listener := range f.listeners {
 				listener.FilesystemUpdated()
 			}
 		}()
+
+		if err := f.saveCheckpoint(); err != nil {
+			log.Errorf("Failed to save filesystem checkpoint: %v", err)
+		}
 	}
 	return nil
 }
@@ -211,6 +237,12 @@ func (f *Filesystem) lookupVideoDuration(path string) (time.Duration, error) {
 	return d, nil
 }
 
+func (f *Filesystem) AddListener(l FilesystemListener) {
+	f.l.Lock()
+	defer f.l.Unlock()
+	f.listeners = append(f.listeners, l)
+}
+
 func (f *Filesystem) doGarbageCollect() {
 	gcStart := time.Now()
 
@@ -220,17 +252,17 @@ func (f *Filesystem) doGarbageCollect() {
 		total += r.Size
 
 		overSize := func() bool {
-			if f.Options.MaxSize == 0 {
+			if f.options.MaxSize == 0 {
 				return false // Disabled
 			}
-			return total > f.Options.MaxSize
+			return total > f.options.MaxSize
 		}
 
 		overAge := func() bool {
-			if f.Options.MaxAge == time.Duration(0) {
+			if f.options.MaxAge == time.Duration(0) {
 				return false // Disabled
 			}
-			return r.Time.Before(gcStart.Add(-f.Options.MaxAge))
+			return r.Time.Before(gcStart.Add(-f.options.MaxAge))
 		}
 
 		if overSize() || overAge() {

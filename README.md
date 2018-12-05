@@ -26,9 +26,7 @@ ffmpeg -version
 
 # Building
 
-Need to run `source $GOROOT/src/gocv.io/x/gocv/env.sh` before doing `go build` for the OpenCV C bindings to be picked up correctly.
-
-TODO: check out bazel
+TODO: check out bazel?
 
 # Encoding Notes
 

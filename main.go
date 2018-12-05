@@ -137,7 +137,7 @@ func main() {
 	}
 
 	metaws := serve.NewMetaUpdater()
-	fs.Listeners = append(fs.Listeners, metaws) // Receive filesystem updates
+	fs.AddListener(metaws) // Receive filesystem updates
 
 	go func() {
 		log.Infof("Hosting web frontend on port %d", *port)
