@@ -2,10 +2,11 @@ package source
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"gocv.io/x/gocv"
 	"image"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"gocv.io/x/gocv"
 )
 
 const (
@@ -120,7 +121,7 @@ func (v *VideoCapture) Get() <-chan Image {
 				if time.Now().After(v.lastFetch.Add(disconnectDelay)) {
 					v.cap.Close()
 					v.cap = nil
-					log.Errorf("Closed capture source %s due to no frame for %d seconds", v.URI, disconnectDelay.Seconds())
+					log.Errorf("Closed capture source %s due to no frame for %.2f seconds", v.URI, disconnectDelay.Seconds())
 				}
 			} else {
 				log.Infof("Attempting connection to capture source %s", v.URI)

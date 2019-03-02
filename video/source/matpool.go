@@ -28,13 +28,13 @@ func NewMatPool() *MatPool {
 				closed = true
 				for _, m := range p.available {
 					m.Close()
-					p.allocated -= 1
+					p.allocated--
 				}
 				p.available = []gocv.Mat{}
 			case m := <-p.free:
 				if closed {
 					m.Close()
-					p.allocated -= 1
+					p.allocated--
 				} else {
 					p.available = append(p.available, m)
 				}
@@ -44,7 +44,7 @@ func NewMatPool() *MatPool {
 					m, p.available = p.available[0], p.available[1:]
 				} else {
 					m = gocv.NewMat()
-					p.allocated += 1
+					p.allocated++
 					// TODO clean; tie max size to buffer.
 					// TODO start blocking callers instead (supports the file dump case).
 					if p.allocated > 500 {

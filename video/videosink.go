@@ -27,7 +27,7 @@ func (p *VideoSinkProducer) New(trigger source.Image) sink.Sink {
 		defer trigger.Release()
 		err := process.WriteThumb(r.ThumbPath, trigger)
 		if err != nil {
-			log.Errorf("failed to generate thubmnail: %v", err)
+			log.Errorf("failed to generate thumbnail: %v", err)
 		} else {
 			log.Infof("thumbnail written to %v", r.ThumbPath)
 		}
