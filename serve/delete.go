@@ -29,5 +29,4 @@ func (s *DeleteServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vr.Delete()
-	s.FS.Refresh()
 }

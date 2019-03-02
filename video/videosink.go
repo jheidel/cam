@@ -4,6 +4,7 @@ import (
 	"cam/video/process"
 	"cam/video/sink"
 	"cam/video/source"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,17 +26,19 @@ func (p *VideoSinkProducer) New(trigger source.Image) sink.Sink {
 
 	go func() {
 		defer trigger.Release()
-		err := process.WriteThumb(r.ThumbPath, trigger)
+		path := r.Paths().ThumbPath
+		err := process.WriteThumb(path, trigger)
 		if err != nil {
 			log.Errorf("failed to generate thumbnail: %v", err)
 		} else {
-			log.Infof("thumbnail written to %v", r.ThumbPath)
+			log.Infof("thumbnail written to %v", path)
 		}
-		p.Filesystem.Refresh()
+		r.UpdateThumb()
 	}()
 
 	var s sink.Sink
-	s = sink.NewFFmpegSink(r.VideoPath, p.FFmpegOptions)
+	path := r.Paths().VideoPath
+	s = sink.NewFFmpegSink(path, p.FFmpegOptions)
 	// Ensure video is output with constant FPS.
 	s = sink.NewFPSNormalize(s, p.FFmpegOptions.FPS)
 
@@ -48,20 +51,19 @@ func (p *VideoSinkProducer) New(trigger source.Image) sink.Sink {
 
 func (w *sinkWrap) Put(i source.Image) {
 	w.sink.Put(i)
-
-	// TODO thumbnail for first image.
 }
 
 func (w *sinkWrap) Close() {
 	w.sink.Close()
-	w.p.Filesystem.Refresh()
+	w.vr.UpdateVideo()
 
 	// Create video thumbnail.
-	c := w.p.VThumbProducer.Process(w.vr.VideoPath, w.vr.VThumbPath)
+	paths := w.vr.Paths()
+	c := w.p.VThumbProducer.Process(paths.VideoPath, paths.VThumbPath)
 	go func() {
 		if c != nil {
 			<-c
-			w.p.Filesystem.Refresh()
+			w.vr.UpdateVThumb()
 		}
 	}()
 }

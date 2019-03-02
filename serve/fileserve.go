@@ -22,7 +22,7 @@ func NewVideoServer(fs *video.Filesystem) *FileServer {
 	return &FileServer{
 		FS: fs,
 		PathFunc: func(r *video.VideoRecord) string {
-			return r.VideoPath
+			return r.Paths().VideoPath
 		},
 		ContentType: "video/mp4",
 	}
@@ -32,7 +32,7 @@ func NewThumbServer(fs *video.Filesystem) *FileServer {
 	return &FileServer{
 		FS: fs,
 		PathFunc: func(r *video.VideoRecord) string {
-			return r.ThumbPath
+			return r.Paths().ThumbPath
 		},
 		ContentType: "image/jpeg",
 	}
@@ -42,7 +42,7 @@ func NewVThumbServer(fs *video.Filesystem) *FileServer {
 	return &FileServer{
 		FS: fs,
 		PathFunc: func(r *video.VideoRecord) string {
-			return r.VThumbPath
+			return r.Paths().VThumbPath
 		},
 		ContentType: "video/mp4",
 	}

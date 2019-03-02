@@ -4,7 +4,6 @@ import (
 	"cam/video"
 	"encoding/json"
 	"net/http"
-	"time"
 )
 
 type MetaEntry struct {
@@ -15,7 +14,7 @@ type MetaEntry struct {
 	HaveThumb  bool
 	HaveVThumb bool
 
-	DurationSec int64
+	DurationSec int
 }
 
 type MetaResponse struct {
@@ -28,12 +27,12 @@ type MetaResponse struct {
 
 func toMetaEntry(r *video.VideoRecord) *MetaEntry {
 	return &MetaEntry{
-		ID:          r.ID,
-		Timestamp:   r.Time.Unix(),
-		HaveVideo:   len(r.VideoPath) > 0,
-		HaveThumb:   len(r.ThumbPath) > 0,
-		HaveVThumb:  len(r.VThumbPath) > 0,
-		DurationSec: int64(r.VideoDuration.Round(time.Second).Seconds()),
+		ID:          r.Identifier,
+		Timestamp:   r.TriggeredAt.Unix(),
+		HaveVideo:   r.HaveVideo,
+		HaveThumb:   r.HaveThumb,
+		HaveVThumb:  r.HaveVThumb,
+		DurationSec: r.VideoDurationSec,
 	}
 }
 
@@ -49,7 +48,7 @@ func (s *MetaServer) BuildResponse() *MetaResponse {
 	for _, r := range records {
 		resp.Items = append(resp.Items, toMetaEntry(r))
 		sz += r.Size
-		resp.OldestTimestamp = r.Time.Unix()
+		resp.OldestTimestamp = r.TriggeredAt.Unix()
 	}
 	resp.ItemsTotalSize = sz
 	resp.ItemsCount = len(records)

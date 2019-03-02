@@ -1,35 +1,42 @@
 package video
 
 import (
-	"encoding/json"
-	"github.com/pillash/mp4util"
-	log "github.com/sirupsen/logrus"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	"github.com/pillash/mp4util"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
-	ExtVideo  = "_video.mp4"
-	ExtThumb  = "_thumb.jpg"
+	// ExtVideo is the extension for video files.
+	ExtVideo = "_video.mp4"
+	// ExtThumb is the extension for thumbnail files.
+	ExtThumb = "_thumb.jpg"
+	// ExtVThumb is the extension for video thumbnail files.
 	ExtVThumb = "_vthumb.mp4"
 
 	// FileTimeLayout defines the format of filenames.
 	// See https://golang.org/src/time/format.go.
 	FileTimeLayout = "20060102-150405Z0700"
 
-	// CheckpointFile is the name of the serialized filesystem representation containing record metadata.
-	CheckpointFile = "metadata.json"
+	// DatabaseFile is the path to the sqlite3 database.
+	DatabaseFile = "cam.db"
 )
 
 var (
-	FilesystemRefreshInterval = time.Minute
-	GarbageCollectionInterval = 5 * time.Minute
+	// FilesystemRefreshInterval controls the frequency of periodic disk consistency
+	// scans.
+	FilesystemRefreshInterval = 10 * time.Minute
+	// GarbageCollectionInterval controls the frequency of garbage collection.
+	GarbageCollectionInterval = 30 * time.Minute
 )
 
 type FilesystemListener interface {
@@ -37,27 +44,96 @@ type FilesystemListener interface {
 }
 
 type VideoRecord struct {
-	Time time.Time
-	ID   string
+	gorm.Model
 
-	// TODO: make these relative?
-	VideoPath  string
-	ThumbPath  string
-	VThumbPath string
+	TriggeredAt time.Time
+	Identifier  string
+
+	HaveVideo  bool
+	HaveThumb  bool
+	HaveVThumb bool
 
 	// Length of the video file.
-	VideoDuration time.Duration
+	VideoDurationSec int
 
 	// Combined size of this record on disk.
 	Size int64
 
 	// Reference to parent.
 	fs *Filesystem
+	l  sync.Mutex
 }
 
-// TODO json version for frontend.
+// VideoRecordPaths defines the absolute paths where new files should be created.
+type VideoRecordPaths struct {
+	VideoPath  string
+	ThumbPath  string
+	VThumbPath string
+}
+
+// Paths provides locations for where new files should be created.
+func (r *VideoRecord) Paths() *VideoRecordPaths {
+	return &VideoRecordPaths{
+		VideoPath:  filepath.Join(r.fs.options.BasePath, r.Identifier+ExtVideo),
+		ThumbPath:  filepath.Join(r.fs.options.BasePath, r.Identifier+ExtThumb),
+		VThumbPath: filepath.Join(r.fs.options.BasePath, r.Identifier+ExtVThumb),
+	}
+}
+
+func (r *VideoRecord) UpdateVideo() {
+	p := r.Paths().VideoPath
+	fi, err := os.Stat(p)
+	if err != nil {
+		log.Errorf("Failed to stat %v: %v", p, err)
+		return
+	}
+	ds, err := mp4util.Duration(p)
+	if err != nil {
+		log.Errorf("Failed to get video duration %v: %v", p, err)
+		return
+	}
+	r.l.Lock()
+	defer r.l.Unlock()
+	r.HaveVideo = true
+	r.Size += fi.Size()
+	r.VideoDurationSec = ds
+	r.fs.db.Save(r)
+	r.fs.notifyListeners()
+}
+
+func (r *VideoRecord) UpdateThumb() {
+	p := r.Paths().ThumbPath
+	fi, err := os.Stat(p)
+	if err != nil {
+		log.Errorf("Failed to stat %v: %v", p, err)
+		return
+	}
+	r.l.Lock()
+	defer r.l.Unlock()
+	r.HaveThumb = true
+	r.Size += fi.Size()
+	r.fs.db.Save(r)
+	r.fs.notifyListeners()
+}
+
+func (r *VideoRecord) UpdateVThumb() {
+	p := r.Paths().VThumbPath
+	fi, err := os.Stat(p)
+	if err != nil {
+		log.Errorf("Failed to stat %v: %v", p, err)
+		return
+	}
+	r.l.Lock()
+	defer r.l.Unlock()
+	r.HaveVThumb = true
+	r.Size += fi.Size()
+	r.fs.db.Save(r)
+	r.fs.notifyListeners()
+}
 
 type FilesystemOptions struct {
+	// Root directory for the filesystem. All videos will be stored here, along
+	// with the sqlite database file.
 	BasePath string
 
 	// MaxSize defines the total size threshold for garbage collection of old
@@ -72,40 +148,46 @@ type FilesystemOptions struct {
 }
 
 type Filesystem struct {
-	Records map[string]*VideoRecord
-
-	options FilesystemOptions
-
-	videoDurationCache map[string]time.Duration
-
-	listeners []FilesystemListener
-
-	refreshc chan bool
-	l        sync.Mutex
+	db               *gorm.DB
+	options          FilesystemOptions
+	listeners        []FilesystemListener
+	listenersDisable bool
+	l                sync.Mutex
 }
 
 func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 	if err := os.MkdirAll(opts.BasePath, 0755); err != nil {
 		return nil, err
 	}
+
+	path := filepath.Join(opts.BasePath, DatabaseFile)
+	db, err := gorm.Open("sqlite3", path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %v", err)
+	}
+	db.AutoMigrate(&VideoRecord{})
+
 	f := &Filesystem{
-		options:            opts,
-		refreshc:           make(chan bool, 1),
-		videoDurationCache: make(map[string]time.Duration),
+		db:      db,
+		options: opts,
 	}
 	go func() {
-		log.Infof("Starting initial filesystem refresh. This could take a while.")
-		f.doRefresh() // Initial filesystem scan.
+		log.Infof("Starting initial filesystem refresh (%v). This could take a while.", opts.BasePath)
+		// Initial filesystem scan.
+		if err := f.doRefresh(); err != nil {
+			log.Errorf("Initial filesystem refresh failed: %v", err)
+		}
+		log.Infof("Initial filesystem scan completed")
 		rt := time.NewTicker(FilesystemRefreshInterval)
 		gt := time.NewTicker(GarbageCollectionInterval)
 		for {
 			select {
-			case <-rt.C:
-				f.Refresh()
 			case <-gt.C:
 				f.doGarbageCollect()
-			case <-f.refreshc:
-				f.doRefresh()
+			case <-rt.C:
+				if err := f.doRefresh(); err != nil {
+					log.Errorf("Periodic ilesystem refresh failed: %v", err)
+				}
 			}
 		}
 	}()
@@ -114,40 +196,31 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 
 func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 	id := t.Format(FileTimeLayout)
-	base := filepath.Join(f.options.BasePath, id)
-	return &VideoRecord{
-		Time: t,
-		ID:   id,
-
-		VideoPath:  base + ExtVideo,
-		ThumbPath:  base + ExtThumb,
-		VThumbPath: base + ExtVThumb,
-
-		fs: f,
+	vr := &VideoRecord{
+		TriggeredAt: t,
+		Identifier:  id,
+		fs:          f,
 	}
+	f.db.Create(vr)
+	return vr
 }
 
-func (f *Filesystem) saveCheckpoint() error {
-	p := filepath.Join(f.options.BasePath, CheckpointFile)
-	b, err := json.MarshalIndent(f, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := ioutil.WriteFile(p, b, 0660); err != nil {
-		return err
-	}
-	return nil
-}
+func (f *Filesystem) scanFilesystem() (map[string]*VideoRecord, error) {
+	start := time.Now()
+	defer func() {
+		et := time.Since(start)
+		if et < time.Second {
+			log.Debugf("Filesystem scan completed in %v", et)
+		} else {
+			log.Infof("Filesystem scan (slow) completed in %v", et)
+		}
+	}()
 
-// TODO implement checkpoint restore.
-
-func (f *Filesystem) doRefresh() error {
-	refreshStart := time.Now()
 	m := make(map[string]*VideoRecord)
 
 	files, err := ioutil.ReadDir(f.options.BasePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, file := range files {
@@ -164,77 +237,122 @@ func (f *Filesystem) doRefresh() error {
 		v := m[id]
 		if v == nil {
 			v = &VideoRecord{
-				Time: t,
-				ID:   id,
-
-				fs: f,
+				TriggeredAt: t,
+				Identifier:  id,
+				fs:          f,
 			}
+			m[id] = v
 		}
 
-		p := filepath.Join(f.options.BasePath, b)
 		switch {
 		case strings.HasSuffix(b, ExtVideo):
-			v.VideoPath = p
-			d, err := f.lookupVideoDuration(p)
-			if err != nil {
-				log.Errorf("Failed to get duration for %v: %v", p, err)
-			} else {
-				v.VideoDuration = d
-			}
+			v.HaveVideo = true
 		case strings.HasSuffix(b, ExtThumb):
-			v.ThumbPath = p
+			v.HaveThumb = true
 		case strings.HasSuffix(b, ExtVThumb):
-			v.VThumbPath = p
+			v.HaveVThumb = true
 		default:
 			continue
 		}
-
-		v.Size += file.Size()
-
-		m[id] = v
 	}
 
-	et := time.Since(refreshStart)
-	if et < time.Second {
-		log.Debugf("Filesystem refresh completed in %v", et)
-	} else {
-		log.Infof("Filesystem refresh (slow) completed in %v", et)
+	return m, nil
+}
+
+func (f *Filesystem) doRefresh() error {
+	fsm, err := f.scanFilesystem()
+	if err != nil {
+		return err
 	}
 
-	f.l.Lock()
-	defer f.l.Unlock()
+	// Determine the set of identifiers present in the database.
+	dbm := make(map[string]bool)
+	var found []string
+	if err := f.db.Model(&VideoRecord{}).Pluck("identifier", &found).Error; err != nil {
+		return fmt.Errorf("failed to look up list of db identifiers: %v", err)
+	}
+	for _, id := range found {
+		dbm[id] = true
+	}
 
-	// TODO: equal might need to change if additional metadata is stored in records...
+	// `dbm` becomes the records that are not present on the filesystem.
+	for k := range fsm {
+		delete(dbm, k)
+	}
+	// `fsm` becomes the records missing in the database.
+	for _, k := range found {
+		delete(fsm, k)
+	}
 
-	equal := reflect.DeepEqual(f.Records, m)
-	f.Records = m
+	if len(dbm) == 0 && len(fsm) == 0 {
+		// Everything in sync.
+		return nil
+	}
 
-	if !equal {
-		go func() {
-			for _, listener := range f.listeners {
-				listener.FilesystemUpdated()
-			}
-		}()
+	log.Infof("%d records missing in database, %d records extra. Starting sync.", len(fsm), len(dbm))
+	start := time.Now()
+	defer func() {
+		et := time.Since(start)
+		if et < time.Second {
+			log.Debugf("Filesystem sync completed in %v", et)
+		} else {
+			log.Infof("Filesystem sync (slow) completed in %v", et)
+		}
+	}()
 
-		if err := f.saveCheckpoint(); err != nil {
-			log.Errorf("Failed to save filesystem checkpoint: %v", err)
+	// Suppress filesystem listeners while the update happens and notify all at once at the end.
+	ne := f.notifyListenersInBatch()
+	defer func() {
+		ne <- true
+	}()
+
+	// Delete extra records.
+	for id := range dbm {
+		vr := f.GetRecordByID(id)
+		vr.Delete()
+	}
+
+	// Insert missing records.
+	for _, vr := range fsm {
+		f.db.Create(vr)
+		if vr.HaveThumb {
+			vr.UpdateThumb()
+		}
+		if vr.HaveVThumb {
+			vr.UpdateVThumb()
+		}
+		if vr.HaveVideo {
+			vr.UpdateVideo()
 		}
 	}
+
 	return nil
 }
 
-// lookupVideoDuration implements cached lookup of the duration of the mp4 file at `path`.
-func (f *Filesystem) lookupVideoDuration(path string) (time.Duration, error) {
-	if d, ok := f.videoDurationCache[path]; ok {
-		return d, nil
+func (f *Filesystem) notifyListenersInBatch() chan<- bool {
+	f.l.Lock()
+	f.listenersDisable = true
+	f.l.Unlock()
+	c := make(chan bool)
+	go func() {
+		<-c
+		f.l.Lock()
+		f.listenersDisable = false
+		f.l.Unlock()
+		f.notifyListeners()
+	}()
+	return c
+}
+
+func (f *Filesystem) notifyListeners() {
+	f.l.Lock()
+	defer f.l.Unlock()
+	if f.listenersDisable {
+		return
 	}
-	ds, err := mp4util.Duration(path)
-	if err != nil {
-		return time.Duration(0), err
+	for _, listener := range f.listeners {
+		go listener.FilesystemUpdated()
 	}
-	d := time.Second * time.Duration(ds)
-	f.videoDurationCache[path] = d
-	return d, nil
 }
 
 func (f *Filesystem) AddListener(l FilesystemListener) {
@@ -245,9 +363,8 @@ func (f *Filesystem) AddListener(l FilesystemListener) {
 
 func (f *Filesystem) doGarbageCollect() {
 	gcStart := time.Now()
-
+	var toDelete []*VideoRecord
 	var total int64
-	var cleaned int
 	for _, r := range f.GetRecords() {
 		total += r.Size
 
@@ -262,29 +379,29 @@ func (f *Filesystem) doGarbageCollect() {
 			if f.options.MaxAge == time.Duration(0) {
 				return false // Disabled
 			}
-			return r.Time.Before(gcStart.Add(-f.options.MaxAge))
+			return r.TriggeredAt.Before(gcStart.Add(-f.options.MaxAge))
 		}
 
 		if overSize() || overAge() {
-			r.Delete()
-			cleaned += 1
+			toDelete = append(toDelete, r)
 		}
 	}
-	if cleaned == 0 {
+	if len(toDelete) == 0 {
 		return
 	}
 
-	log.Infof("Garbage collection removed %d records in %v", cleaned, time.Since(gcStart))
+	ne := f.notifyListenersInBatch()
+	defer func() {
+		ne <- true
+	}()
 
-	// Filesystem was changed and a refresh is needed.
-	f.Refresh()
+	for _, r := range toDelete {
+		r.Delete()
+	}
+	log.Infof("Garbage collection removed %d records in %v", len(toDelete), time.Since(gcStart))
 }
 
 func (r *VideoRecord) Delete() {
-	if r.VideoPath != "" {
-		delete(r.fs.videoDurationCache, r.VideoPath)
-	}
-
 	remove := func(p string) {
 		if p == "" {
 			return
@@ -293,38 +410,40 @@ func (r *VideoRecord) Delete() {
 			log.Errorf("Garbage collection failed for %v: %v", p, err)
 		}
 	}
-	remove(r.VideoPath)
-	remove(r.ThumbPath)
-	remove(r.VThumbPath)
-
-	log.Infof("Deleted event %v", r.ID)
-}
-
-// Refresh triggers a manual refresh of the filesystem records.
-func (f *Filesystem) Refresh() {
-	select {
-	case f.refreshc <- true:
-	default:
+	paths := r.Paths()
+	if r.HaveVideo {
+		remove(paths.VideoPath)
 	}
+	if r.HaveThumb {
+		remove(paths.ThumbPath)
+	}
+	if r.HaveVThumb {
+		remove(paths.VThumbPath)
+	}
+	r.fs.db.Delete(r)
+	log.Infof("Deleted event %v", r.ID)
+
+	r.fs.notifyListeners()
 }
 
 // GetRecords provides the current filesystem. Output be sorted by most recent first.
 func (f *Filesystem) GetRecords() []*VideoRecord {
-	f.l.Lock()
-	var rs []*VideoRecord
-	for _, r := range f.Records {
-		rs = append(rs, r)
+	var records []*VideoRecord
+	if err := f.db.Order("triggered_at DESC").Find(&records).Error; err != nil {
+		log.Errorf("Record lookup failed: %v", err)
+		return []*VideoRecord{}
 	}
-	f.l.Unlock()
-
-	sort.Slice(rs, func(i, j int) bool {
-		return rs[j].Time.Before(rs[i].Time) // descending sort
-	})
-	return rs
+	for _, r := range records {
+		r.fs = f
+	}
+	return records
 }
 
 func (f *Filesystem) GetRecordByID(ID string) *VideoRecord {
-	f.l.Lock()
-	defer f.l.Unlock()
-	return f.Records[ID]
+	record := &VideoRecord{}
+	if f.db.Where("identifier = ?", ID).First(record).RecordNotFound() {
+		return nil
+	}
+	record.fs = f
+	return record
 }
