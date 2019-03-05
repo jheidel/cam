@@ -477,7 +477,7 @@ func (r *VideoRecord) Delete() {
 		remove(paths.VThumbPath)
 	}
 	r.fs.db.Delete(r)
-	log.Infof("Deleted event %v", r.ID)
+	log.Infof("Deleted event %v (id=%v)", r.Identifier, r.ID)
 
 	r.fs.notifyListeners()
 }

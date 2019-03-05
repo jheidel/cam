@@ -5,6 +5,7 @@ import (
 	"image"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -41,6 +42,9 @@ type Classifier struct {
 
 	// Resized 300x300 image for image classification.
 	small gocv.Mat
+
+	enabled bool
+	l       sync.Mutex
 }
 
 func NewClassifier(prototxt, caffeModel []byte) *Classifier {
@@ -89,6 +93,10 @@ func (d Detections) DebugString() string {
 }
 
 func (cl *Classifier) Classify(input gocv.Mat) Detections {
+	if !cl.isEnabled() {
+		return nil
+	}
+
 	start := time.Now()
 	defer func() {
 		// TODO export this as a streaming stat.
@@ -134,4 +142,24 @@ func (cl *Classifier) Classify(input gocv.Mat) Detections {
 		}
 	}
 	return output
+}
+
+func (cl *Classifier) Enable() {
+	cl.l.Lock()
+	defer cl.l.Unlock()
+	cl.enabled = true
+	log.Infof("Classifier enabled")
+}
+
+func (cl *Classifier) Disable() {
+	cl.l.Lock()
+	defer cl.l.Unlock()
+	cl.enabled = false
+	log.Infof("Classifier disabled")
+}
+
+func (cl *Classifier) isEnabled() bool {
+	cl.l.Lock()
+	defer cl.l.Unlock()
+	return cl.enabled
 }

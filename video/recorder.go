@@ -14,6 +14,8 @@ type RecorderOptions struct {
 }
 
 type Recorder struct {
+	Classifier *process.Classifier
+
 	producer *VideoSinkProducer
 	opts     *RecorderOptions
 	buf      *Buffer
@@ -50,6 +52,9 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 			}
 			out.SetDetections(detection)
 			go out.Close()
+			if r.Classifier != nil {
+				r.Classifier.Disable()
+			}
 			recording = false
 			stop = nil
 			stopLong = nil
@@ -71,6 +76,9 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 					r.buf.FlushToSink(out)
 					recording = true
 					stopLong = time.NewTimer(r.opts.MaxRecordTime).C
+					if r.Classifier != nil {
+						r.Classifier.Enable()
+					}
 				}
 				stop = time.NewTimer(r.opts.RecordTime).C
 

@@ -120,6 +120,8 @@ func main() {
 	}
 
 	classifier := process.NewClassifier(prototxt, caffeModel)
+	// Allow recorder to enable / disable the classifier.
+	rec.Classifier = classifier
 
 	motion := process.NewMotion(mjpegServer, classifier, cap.Size())
 	// Trigger recorder on motion.
