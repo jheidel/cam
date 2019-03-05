@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"cam/video/sink"
+	"cam/video/process"
 	"cam/video/source"
 )
 
@@ -14,30 +14,33 @@ type RecorderOptions struct {
 }
 
 type Recorder struct {
-	producer sink.SinkProducer
+	producer *VideoSinkProducer
 	opts     *RecorderOptions
 	buf      *Buffer
 
-	input    chan source.Image
-	inputack chan bool
-	trigger  chan bool
-	close    chan chan bool
+	input     chan source.Image
+	inputack  chan bool
+	trigger   chan bool
+	detection chan process.Detections
+	close     chan chan bool
 }
 
-func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
+func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 	r := &Recorder{
 		producer: p,
 		opts:     o,
 		buf:      NewBuffer(o.BufferTime),
 
-		input:    make(chan source.Image),
-		inputack: make(chan bool),
-		trigger:  make(chan bool),
-		close:    make(chan chan bool),
+		input:     make(chan source.Image),
+		inputack:  make(chan bool),
+		trigger:   make(chan bool),
+		detection: make(chan process.Detections),
+		close:     make(chan chan bool),
 	}
 	go func() {
 		recording := false
-		var out sink.Sink
+		var out *VideoSink
+		var detection process.Detections
 		var stop <-chan time.Time
 		var stopLong <-chan time.Time
 
@@ -45,6 +48,7 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 			if !recording {
 				panic("expected to be in state recording")
 			}
+			out.SetDetections(detection)
 			go out.Close()
 			recording = false
 			stop = nil
@@ -63,11 +67,17 @@ func NewRecorder(p sink.SinkProducer, o *RecorderOptions) *Recorder {
 			case <-r.trigger:
 				if !recording {
 					out = r.producer.New(r.buf.GetLast())
+					detection = make(process.Detections)
 					r.buf.FlushToSink(out)
 					recording = true
 					stopLong = time.NewTimer(r.opts.MaxRecordTime).C
 				}
 				stop = time.NewTimer(r.opts.RecordTime).C
+
+			case d := <-r.detection:
+				if detection != nil {
+					detection.Merge(d)
+				}
 
 			case <-stop:
 				stopFunc()
@@ -103,6 +113,10 @@ func (r *Recorder) Close() {
 // `RecordTime`.
 func (r *Recorder) Trigger() {
 	r.trigger <- true
+}
+
+func (r *Recorder) Detection(d process.Detections) {
+	r.detection <- d
 }
 
 // ServeHTTP implements http.Handler interface for manual triggering.

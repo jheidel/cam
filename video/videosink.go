@@ -14,14 +14,15 @@ type VideoSinkProducer struct {
 	VThumbProducer *process.VThumbProducer
 }
 
-type sinkWrap struct {
+type VideoSink struct {
 	sink sink.Sink
 	vr   *VideoRecord
 
-	p *VideoSinkProducer
+	detections []process.Detection
+	p          *VideoSinkProducer
 }
 
-func (p *VideoSinkProducer) New(trigger source.Image) sink.Sink {
+func (p *VideoSinkProducer) New(trigger source.Image) *VideoSink {
 	r := p.Filesystem.NewRecord(trigger.Time)
 
 	go func() {
@@ -42,20 +43,27 @@ func (p *VideoSinkProducer) New(trigger source.Image) sink.Sink {
 	// Ensure video is output with constant FPS.
 	s = sink.NewFPSNormalize(s, p.FFmpegOptions.FPS)
 
-	return &sinkWrap{
+	return &VideoSink{
 		sink: s,
 		vr:   r,
 		p:    p,
 	}
 }
 
-func (w *sinkWrap) Put(i source.Image) {
+func (w *VideoSink) Put(i source.Image) {
 	w.sink.Put(i)
 }
 
-func (w *sinkWrap) Close() {
+func (w *VideoSink) SetDetections(detection process.Detections) {
+	if len(detection) > 0 {
+		log.Infof("Final detections for video: %v", detection.DebugString())
+	}
+	w.detections = detection.SortedDetections()
+}
+
+func (w *VideoSink) Close() {
 	w.sink.Close()
-	w.vr.UpdateVideo()
+	w.vr.UpdateVideo(w.detections)
 
 	// Create video thumbnail.
 	paths := w.vr.Paths()

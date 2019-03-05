@@ -1,10 +1,14 @@
 package process
 
 import (
+	"fmt"
+	"image"
+	"sort"
+	"strings"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
-	"image"
-	"time"
 )
 
 // Detection classes for MobileNet SSD
@@ -50,12 +54,41 @@ func NewClassifier(prototxt, caffeModel []byte) *Classifier {
 	}
 }
 
+type Detections map[string]float32
+
+func (d Detections) Merge(other Detections) {
+	for k, v := range other {
+		if d[k] < v {
+			d[k] = v
+		}
+	}
+}
+
 type Detection struct {
 	Class      string
 	Confidence float32
 }
 
-func (cl *Classifier) Classify(input gocv.Mat) *Detection {
+func (d Detections) SortedDetections() []Detection {
+	var ss []Detection
+	for k, v := range d {
+		ss = append(ss, Detection{k, v})
+	}
+	sort.Slice(ss, func(i, j int) bool {
+		return ss[i].Confidence > ss[j].Confidence
+	})
+	return ss
+}
+
+func (d Detections) DebugString() string {
+	var ds []string
+	for _, kv := range d.SortedDetections() {
+		ds = append(ds, fmt.Sprintf("%s: %.2f", kv.Class, kv.Confidence))
+	}
+	return strings.Join(ds, ", ")
+}
+
+func (cl *Classifier) Classify(input gocv.Mat) Detections {
 	start := time.Now()
 	defer func() {
 		// TODO export this as a streaming stat.
@@ -76,8 +109,7 @@ func (cl *Classifier) Classify(input gocv.Mat) *Detection {
 	detections := gocv.GetBlobChannel(detBlob, 0, 0)
 	defer detections.Close()
 
-	var detection *Detection
-
+	output := make(Detections)
 	for r := 0; r < detections.Rows(); r++ {
 		classID := int(detections.GetFloatAt(r, 1))
 		classMn := mobileNetClasses[classID]
@@ -97,14 +129,9 @@ func (cl *Classifier) Classify(input gocv.Mat) *Detection {
 		bottom := int(detections.GetFloatAt(r, 6) * float32(input.Rows()))
 		log.Debugf("Detection of %s (%s) at (%d, %d, %d, %d), confidence %.2f", class, classMn, left, top, right, bottom, confidence)
 
-		// TODO render a nice debug view!
-
-		if detection == nil || confidence > detection.Confidence {
-			detection = &Detection{
-				Class:      class,
-				Confidence: confidence,
-			}
+		if output[class] < confidence {
+			output[class] = confidence
 		}
 	}
-	return detection
+	return output
 }

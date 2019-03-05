@@ -1,6 +1,10 @@
 package video
 
 import (
+	"bufio"
+	"bytes"
+	"cam/video/process"
+	"encoding/gob"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -43,11 +47,15 @@ type FilesystemListener interface {
 	FilesystemUpdated()
 }
 
+type Classification struct {
+	Detections []process.Detection
+}
+
 type VideoRecord struct {
 	gorm.Model
 
 	TriggeredAt time.Time
-	Identifier  string
+	Identifier  string `gorm:"type:varchar(100);unique_index"`
 
 	HaveVideo  bool
 	HaveThumb  bool
@@ -59,9 +67,51 @@ type VideoRecord struct {
 	// Combined size of this record on disk.
 	Size int64
 
+	HaveClassification  bool
+	Classification      *Classification
+	ClassificationBytes []byte
+
 	// Reference to parent.
 	fs *Filesystem
 	l  sync.Mutex
+}
+
+func (r *VideoRecord) BeforeCreate() error {
+	return r.BeforeSave()
+}
+func (r *VideoRecord) BeforeUpdate() error {
+	return r.BeforeSave()
+}
+func (r *VideoRecord) BeforeSave() error {
+	if r.Classification == nil {
+		return nil
+	}
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	e := gob.NewEncoder(w)
+	if err := e.Encode(r.Classification); err != nil {
+		return err
+	}
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	r.ClassificationBytes = b.Bytes()
+	return nil
+}
+
+func (r *VideoRecord) AfterFind() error {
+	if len(r.ClassificationBytes) == 0 {
+		return nil
+	}
+	br := bytes.NewReader(r.ClassificationBytes)
+	d := gob.NewDecoder(br)
+	c := &Classification{}
+	if err := d.Decode(c); err != nil {
+		log.Errorf("Failed to decode classification %v", err)
+		return err
+	}
+	r.Classification = c
+	return nil
 }
 
 // VideoRecordPaths defines the absolute paths where new files should be created.
@@ -80,7 +130,7 @@ func (r *VideoRecord) Paths() *VideoRecordPaths {
 	}
 }
 
-func (r *VideoRecord) UpdateVideo() {
+func (r *VideoRecord) UpdateVideo(detections []process.Detection) {
 	p := r.Paths().VideoPath
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -97,6 +147,12 @@ func (r *VideoRecord) UpdateVideo() {
 	r.HaveVideo = true
 	r.Size += fi.Size()
 	r.VideoDurationSec = ds
+	if len(detections) > 0 {
+		r.HaveClassification = true
+		r.Classification = &Classification{
+			Detections: detections,
+		}
+	}
 	r.fs.db.Save(r)
 	r.fs.notifyListeners()
 }
@@ -322,7 +378,7 @@ func (f *Filesystem) doRefresh() error {
 			vr.UpdateVThumb()
 		}
 		if vr.HaveVideo {
-			vr.UpdateVideo()
+			vr.UpdateVideo(nil)
 		}
 	}
 

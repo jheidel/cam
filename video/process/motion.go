@@ -2,16 +2,19 @@ package process
 
 import (
 	"cam/video/sink"
-	log "github.com/sirupsen/logrus"
-	"gocv.io/x/gocv"
 	"image"
 	"image/color"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"gocv.io/x/gocv"
 )
 
 type Triggerable interface {
 	// Indicates that motion has been triggered.
 	Trigger()
+
+	Detection(d Detections)
 }
 
 var (
@@ -186,8 +189,11 @@ func (m *Motion) loop() {
 
 		// TODO, modify triggering event system to do classification only if
 		// triggered.
-		if d := m.classifier.Classify(input); d != nil {
-			log.Infof("Classified %s (%.2f confidence)", d.Class, d.Confidence)
+		if d := m.classifier.Classify(input); len(d) > 0 {
+			log.Infof("Classifier had detection results: %v", d.DebugString())
+			if m.Trigger != nil {
+				m.Trigger.Detection(d)
+			}
 		}
 
 		// TODO: export this as a streaming stat.

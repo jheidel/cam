@@ -15,6 +15,8 @@ type MetaEntry struct {
 	HaveVThumb bool
 
 	DurationSec int
+
+	Classification *video.Classification
 }
 
 type MetaResponse struct {
@@ -27,12 +29,13 @@ type MetaResponse struct {
 
 func toMetaEntry(r *video.VideoRecord) *MetaEntry {
 	return &MetaEntry{
-		ID:          r.Identifier,
-		Timestamp:   r.TriggeredAt.Unix(),
-		HaveVideo:   r.HaveVideo,
-		HaveThumb:   r.HaveThumb,
-		HaveVThumb:  r.HaveVThumb,
-		DurationSec: r.VideoDurationSec,
+		ID:             r.Identifier,
+		Timestamp:      r.TriggeredAt.Unix(),
+		HaveVideo:      r.HaveVideo,
+		HaveThumb:      r.HaveThumb,
+		HaveVThumb:     r.HaveVThumb,
+		DurationSec:    r.VideoDurationSec,
+		Classification: r.Classification,
 	}
 }
 
