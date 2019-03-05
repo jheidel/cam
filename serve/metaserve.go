@@ -2,6 +2,7 @@ package serve
 
 import (
 	"cam/video"
+	"cam/video/process"
 	"encoding/json"
 	"net/http"
 )
@@ -16,7 +17,7 @@ type MetaEntry struct {
 
 	DurationSec int
 
-	Classification *video.Classification
+	Detection *process.Detection
 }
 
 type MetaResponse struct {
@@ -28,15 +29,18 @@ type MetaResponse struct {
 }
 
 func toMetaEntry(r *video.VideoRecord) *MetaEntry {
-	return &MetaEntry{
-		ID:             r.Identifier,
-		Timestamp:      r.TriggeredAt.Unix(),
-		HaveVideo:      r.HaveVideo,
-		HaveThumb:      r.HaveThumb,
-		HaveVThumb:     r.HaveVThumb,
-		DurationSec:    r.VideoDurationSec,
-		Classification: r.Classification,
+	me := &MetaEntry{
+		ID:          r.Identifier,
+		Timestamp:   r.TriggeredAt.Unix(),
+		HaveVideo:   r.HaveVideo,
+		HaveThumb:   r.HaveThumb,
+		HaveVThumb:  r.HaveVThumb,
+		DurationSec: r.VideoDurationSec,
 	}
+	if r.Classification != nil && len(r.Classification.Detections) > 0 {
+		me.Detection = &r.Classification.Detections[0]
+	}
+	return me
 }
 
 type MetaServer struct {

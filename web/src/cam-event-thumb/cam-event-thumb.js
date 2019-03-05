@@ -1,4 +1,7 @@
 import { PolymerElement } from '@polymer/polymer/polymer-element.js';
+import '@polymer/iron-icons/iron-icons.js';
+import '@polymer/iron-icons/maps-icons.js';
+import '@polymer/iron-icons/social-icons.js';
 import '@polymer/paper-card/paper-card.js';
 import { html } from '@polymer/polymer/lib/utils/html-tag.js';
 import moment from 'moment/src/moment.js';
@@ -10,6 +13,9 @@ class CamEventThumb extends PolymerElement {
   static get template() {
     return html`
     <style>
+       .thumb-container {
+          position: relative;
+       }
       .thumbbox {
         background-color: black;
         background-size: cover;
@@ -45,9 +51,17 @@ class CamEventThumb extends PolymerElement {
               color: #888;
               text-align: right;
       }
+      .detection {
+              display: flex;
+              background-color: #fef;
+              position: absolute;
+              bottom: 0;
+              right: 0;
+              padding: 2px;
+      }
     </style>
     <paper-card>
-    <div on-tap="eventClicked_">
+    <div on-tap="eventClicked_" class="thumb-container">
       <a class="tlink" href="javascript:void(0);">
         <div id="tbox" class="thumbbox thumbsize" on-mouseover="hoverVideo_" on-mouseout="hideVideo_">
           <video id="vthumb" class="thumbsize" loop="" preload="none" autoplay="" hidden="true">
@@ -58,7 +72,17 @@ class CamEventThumb extends PolymerElement {
           </template>
         </div>
       </a>
-            </div>
+
+       <dom-if if="[[event.Detection]]">
+                <template>
+                        <div class="detection">
+                                <iron-icon icon="[[computeIcon_(event.Detection.Class)]]"></iron-icon>
+                                <span>[[computePercent_(event.Detection.Confidence)]]</span>
+                        </div>
+                </template>
+        </dom-if>
+      </div>
+
       <div class="belowthumb">
               <div>
                       <div class="date">
@@ -109,6 +133,23 @@ class CamEventThumb extends PolymerElement {
           if (this.event.HaveVideo) {
                   this.dispatchEvent(new CustomEvent('open-event', {detail: {event: this.event}, bubbles: true, composed: true}));
           }
+  }
+
+  computeIcon_(c) {
+          if (c === "person") {
+                  return "social:person";
+          }
+          if (c === "vehicle") {
+                  return "maps:directions-car";
+          }
+          if (c === "animal") {
+                  return "pets";
+          }
+          return "help";
+  }
+
+  computePercent_(p) {
+        return Math.round(p * 100) + "%";
   }
 
   eventChanged_(newValue, oldValue) {

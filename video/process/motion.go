@@ -188,7 +188,8 @@ func (m *Motion) loop() {
 		debug.Put("motiondraw", m.draw)
 
 		// TODO, modify triggering event system to do classification only if
-		// triggered.
+		// triggered (to reduce CPU...)
+
 		if d := m.classifier.Classify(input); len(d) > 0 {
 			log.Infof("Classifier had detection results: %v", d.DebugString())
 			if m.Trigger != nil {
