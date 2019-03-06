@@ -101,7 +101,7 @@ class CamEvents extends PolymerElement {
     super.ready();
 
     // Automatically refresh page when new events are triggered.
-    this.ws = new WebSocket("ws://" + window.location.host + "/eventsws");
+    this.ws = new WebSocket("wss://" + window.location.host + "/eventsws");
     const ajax = this.$.ajax;
     this.ws.onmessage = function(e) {
           ajax.generateRequest();

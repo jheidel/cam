@@ -23,6 +23,7 @@
     "@polymer/paper-item": "^3.0.0-pre.18",
     "@polymer/paper-listbox": "^3.0.0-pre.18",
     "@polymer/paper-toast": "^3.0.0-pre.18",
+    "@polymer/paper-toggle-button": "^3.0.1",
     "@polymer/polymer": "^3.0.0",
     "iron-lazy-pages": "^3.0.2",
     "moment": "^2.22.2"

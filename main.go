@@ -23,7 +23,9 @@ import (
 )
 
 var (
-	port = flag.Int("port", 8080, "Port to host web frontend.")
+	port     = flag.Int("port", 8443, "Port to host http web frontend.")
+	certPath = flag.String("cert", "/home/jeff/devkeys/cert.pem", "Path to cert.pem file")
+	keyPath  = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
 )
 
 func main() {
@@ -151,12 +153,12 @@ func main() {
 		http.Handle("/video", serve.NewVideoServer(fs))
 		http.Handle("/thumb", serve.NewThumbServer(fs))
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))
-		// TODO web prefix as flag instead?
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))
 
-		err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
+		ps := fmt.Sprintf(":%d", *port)
+		err := http.ListenAndServeTLS(ps, *certPath, *keyPath, nil)
 		log.Infof("HTTP server exited with status %v", err)
 	}()
 

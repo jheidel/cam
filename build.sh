@@ -7,6 +7,7 @@ set -e
 
 # Compile polymer frontend
 (cd web && polymer build --js-minify --css-minify --html-minify)
+cp web/src/static/* web/build/default/
 
 # Generate bindata.go file from polymer output
 go-bindata web/build/default/... models/...
