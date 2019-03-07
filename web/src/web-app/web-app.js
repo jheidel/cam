@@ -17,8 +17,9 @@ import '@polymer/paper-icon-button/paper-icon-button.js';
 import '@polymer/paper-item/paper-icon-item.js';
 import '@polymer/paper-listbox/paper-listbox.js';
 import '@polymer/paper-toast/paper-toast.js';
-import '../cam-live/cam-live.js';
 import '../cam-events/cam-events.js';
+import '../cam-live/cam-live.js';
+import '../cam-notifications/cam-notifications.js';
 import { html } from '@polymer/polymer/lib/utils/html-tag.js';
 /**
  * @customPolymerElement
@@ -77,15 +78,9 @@ class WebApp extends PolymerElement {
         max-height: 100%;
         display: inline-block;
       }
-      .help {
-        font-size: 10pt;
-      }
       .notifications {
         padding-top: 30px;
         padding-left: 10px;
-      }
-      .notifications > paper-toggle-button {
-        padding-top: 10px;
       }
     </style>
 
@@ -111,18 +106,9 @@ class WebApp extends PolymerElement {
                                 Event History
                         </paper-icon-item>
                 </paper-listbox>
-                <dom-if if="[[notificationsSupported_()]]">
-                <template>
                 <div class="notifications">
-                        <div class="help">
-                                Enable push notifications to get updates on
-                                motion events. You will need to subscribe on
-                                each browser where you want to be notified.
-                        </div>
-                        <paper-toggle-button on-change="onNotificationToggle_">Push Notifications</paper-toggle-button>
+                  <cam-notifications></cam-notifications>
                 </div>
-                </template>
-                </dom-if>
         </app-drawer>
         <div>
           <iron-lazy-pages selected="[[route]]" attr-for-selected="data-route">
@@ -231,86 +217,6 @@ class WebApp extends PolymerElement {
           // TODO: doesn't work correctly on mobile.
           this.$.drawerlayout.forceNarrow = !this.$.drawerlayout.forceNarrow;
   }
-
-  notificationsSupported_() {
-        if (!('serviceWorker' in navigator)) {
-                return false;
-        }
-        if (!('PushManager' in window)) {
-                return false;
-        }
-        return true;
-}
-
-askPermission_() {
-        return new Promise(function(resolve, reject) {
-                const permissionResult = Notification.requestPermission(function(result) {
-                        resolve(result);
-                });
-                if (permissionResult) {
-                        permissionResult.then(resolve, reject);
-                }
-        })
-        .then(function(permissionResult) {
-                if (permissionResult !== 'granted') {
-                throw new Error('We weren\'t granted permission.');
-                }
-        });
-}
-
-urlB64ToUint8Array_(base64String) {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding)
-          .replace(/\-/g, '+')
-          .replace(/_/g, '/');
-      
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-      
-        for (let i = 0; i < rawData.length; ++i) {
-          outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
-}
-
-subscribeUserToPush_() {
-        return navigator.serviceWorker.register('service-worker.js')
-        .then((registration)  => {
-          const subscribeOptions = {
-            userVisibleOnly: true,
-            // TODO: get this public key from the server itself.
-            applicationServerKey: this.urlB64ToUint8Array_(
-              'BBhpVXidykBwxX-4gv_3pRf5hvrDrRygPc4pRmZVE7Z2WsirdqWwCdRjPjwCelHQtYCIUvraLPfWKob6KiFMXU4'
-            )
-          };
-      
-          return registration.pushManager.subscribe(subscribeOptions);
-        })
-        .then((pushSubscription) => {
-          console.log('Received PushSubscription: ', JSON.stringify(pushSubscription));
-          return pushSubscription;
-        });
-}
-
-onNotificationToggle_(e) {
-        const enabled = e.target.checked;
-        // TODO implement disable.
-
-        this.askPermission_().then((result) => {
-                console.log("Subscribing to push...");
-                this.subscribeUserToPush_().then((subscribe) => {
-                        console.log("GOT SUBSCRIPTION!");
-                        console.log(subscribe);
-
-                        // TODO: post this along to the server!
-                }, (err) => {
-                        console.log("Failed to register push");
-                        console.log(err);
-                });
-        }, (err) => {
-                console.log("Permission rejected: " + err);
-        });
-}
 
 }
 

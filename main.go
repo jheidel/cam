@@ -24,6 +24,7 @@ import (
 
 var (
 	port     = flag.Int("port", 8443, "Port to host http web frontend.")
+	rootPath = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
 	certPath = flag.String("cert", "/home/jeff/devkeys/cert.pem", "Path to cert.pem file")
 	keyPath  = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
 )
@@ -82,8 +83,9 @@ func main() {
 	maxtime := 5 * time.Minute
 
 	fsOpts := video.FilesystemOptions{
-		BasePath: "/home/jeff/db/",
-		MaxSize:  100 << 30, // 100 GiB
+		BasePath: *rootPath,
+		// DO NOT SUBMIT
+		MaxSize: 5 << 30, // 100 GiB
 	}
 	fs, err := video.NewFilesystem(fsOpts)
 	if err != nil {
@@ -143,6 +145,11 @@ func main() {
 	metaws := serve.NewMetaUpdater()
 	fs.AddListener(metaws) // Receive filesystem updates
 
+	push, err := serve.NewWebPush(*rootPath)
+	if err != nil {
+		log.Fatalf("Failed to set up web push: %v", err)
+	}
+
 	go func() {
 		log.Infof("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
@@ -156,6 +163,7 @@ func main() {
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))
+		push.RegisterHandlers(http.DefaultServeMux)
 
 		ps := fmt.Sprintf(":%d", *port)
 		err := http.ListenAndServeTLS(ps, *certPath, *keyPath, nil)

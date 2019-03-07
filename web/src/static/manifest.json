@@ -1,0 +1,7 @@
+{
+  "name": "Security Camera",
+  "short_name": "securitycam",
+  "description": "Security Camera Frontend",
+  "start_url": "/",
+  "display": "standalone"
+}
