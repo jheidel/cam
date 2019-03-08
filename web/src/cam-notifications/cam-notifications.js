@@ -181,7 +181,7 @@ class CamNotifications extends PolymerElement {
 
         async hasSubscription_() {
                 try {
-                    const haveSub = navigator.serviceWorker.ready
+                     const haveSub = navigator.serviceWorker.register('service-worker.js')
                         .then(reg => reg.pushManager.getSubscription())
                         .then(sub => !!sub);
                         return await haveSub;
@@ -194,6 +194,9 @@ class CamNotifications extends PolymerElement {
 
         ready() {
                 super.ready();
+                if (!this.notificationsSupported_()) {
+                        return;
+                }
                 this.hasSubscription_().then((subscribed) => {
                         this.$.toggle.checked = subscribed;
                         this.$.toggle.disabled = false;

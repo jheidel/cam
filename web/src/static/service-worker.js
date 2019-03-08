@@ -4,12 +4,14 @@
 // https://github.com/GoogleChrome/samples/blob/gh-pages/push-messaging-and-notifications/service-worker.js
 
 self.addEventListener('push', function(event) {
-  console.log('Received a push message', event);
+  console.log('(v2) Received a push message', event);
+  const data = event.data.json();
 
-  var title = 'Yay a message.';
-  var body = 'We have received a push message.';
+  console.log(data);
+
   //var icon = '/images/icon-192x192.png';
   //var tag = 'simple-push-demo-notification-tag';
+  const title = "Hello world, you have a notification!";
 
   event.waitUntil(
     self.registration.showNotification(title, {
