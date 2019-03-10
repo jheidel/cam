@@ -11,6 +11,7 @@
   "main": "index.js",
   "dependencies": {
     "@polymer/app-layout": "^3.0.0-pre.18",
+    "@polymer/app-route": "^3.0.2",
     "@polymer/iron-ajax": "^3.0.0-pre.18",
     "@polymer/iron-flex-layout": "^3.0.0-pre.18",
     "@polymer/iron-icons": "^3.0.0-pre.18",

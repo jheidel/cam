@@ -17,6 +17,7 @@ import '@polymer/paper-icon-button/paper-icon-button.js';
 import '@polymer/paper-item/paper-icon-item.js';
 import '@polymer/paper-listbox/paper-listbox.js';
 import '@polymer/paper-toast/paper-toast.js';
+import '@polymer/app-route/app-location.js';
 import '../cam-events/cam-events.js';
 import '../cam-live/cam-live.js';
 import '../cam-notifications/cam-notifications.js';
@@ -84,6 +85,7 @@ class WebApp extends PolymerElement {
       }
     </style>
 
+<app-location path="{{route}}" use-hash-as-path></app-location>
 <app-header-layout fullbleed="">
   <app-header slot="header" fixed="" condenses="" effects="waterfall">
     <app-toolbar>
@@ -174,13 +176,21 @@ class WebApp extends PolymerElement {
     return {
             route: {
                     type: String,
-                    value: "events"
+                    value: "events",
+                    observer: 'routeChanged_'
             },
             event: {
                     type: Object,
                     value: null,
             }
     };
+  }
+
+  routeChanged_(newValue) {
+          if (!newValue) {
+                  // TODO probably use app route converter instead of this hack.
+                  this.route = "events";
+          }
   }
 
   onOpenEvent_(e) {

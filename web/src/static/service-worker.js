@@ -1,23 +1,35 @@
 'use strict';
 
-// Sourced from chrome web push demo: 
+// Modified from chrome web push demo: 
 // https://github.com/GoogleChrome/samples/blob/gh-pages/push-messaging-and-notifications/service-worker.js
 
 self.addEventListener('push', function(event) {
-  console.log('(v2) Received a push message', event);
-  const data = event.data.json();
+  console.log('(v6) Received a push message');
+  console.log(event);
 
-  console.log(data);
+  const notification = event.data.json();
+  if (!notification) {
+    console.log("Failed to decode notification");
+  }
 
-  //var icon = '/images/icon-192x192.png';
-  //var tag = 'simple-push-demo-notification-tag';
-  const title = "Hello world, you have a notification!";
+  console.log("Notification object");
+  console.log(notification);
+
+  const cls = notification.Detection.Class;
+  const tcls = cls.charAt(0).toUpperCase() + cls.slice(1);
+
+  const pcnt = Math.round(notification.Detection.Confidence * 100) + "%";
+  const ts = notification.TimeString;
+
+  const title = `${tcls} detected!`;
+  const body = `At ${ts} the security camera detected a ${cls} (confidence ${pcnt}).`
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body: body,
-      //icon: icon,
-      //tag: tag
+      tag: notification.Identifier,
+      image: '/thumb?id=' + notification.Identifier,
+      icon: '/favicon.ico',
     })
   );
 });
@@ -33,14 +45,15 @@ self.addEventListener('notificationclick', function(event) {
   event.waitUntil(clients.matchAll({
     type: 'window'
   }).then(function(clientList) {
+    const targetUrl = '/#live'
     for (var i = 0; i < clientList.length; i++) {
       var client = clientList[i];
-      if (client.url === '/' && 'focus' in client) {
+      if (client.url === targetUrl && 'focus' in client) {
         return client.focus();
       }
     }
     if (clients.openWindow) {
-      return clients.openWindow('/');
+      return clients.openWindow(targetUrl);
     }
   }));
 });

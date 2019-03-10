@@ -1,6 +1,7 @@
-package serve
+package notify
 
 import (
+	"cam/video/process"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -158,7 +159,16 @@ func (p *WebPush) handleGetSubscriptions(w http.ResponseWriter, r *http.Request)
 }
 
 func (p *WebPush) handleTest(w http.ResponseWriter, r *http.Request) {
-	p.NotifyAll()
+	// Send an arbitrary test message.
+	n := &Notification{
+		TimeString: "8:47 PM",
+		Identifier: "20190310-143421-0700",
+		Detection: process.Detection{
+			Class:      "test",
+			Confidence: 0.975,
+		},
+	}
+	p.Notify(n)
 }
 
 func (p *WebPush) notifyOne(pc *PushConfig, payload []byte) error {
@@ -174,7 +184,7 @@ func (p *WebPush) notifyOne(pc *PushConfig, payload []byte) error {
 		VAPIDPrivateKey: p.Key.Private,
 		TTL:             120,
 		Urgency:         webpush.UrgencyHigh,
-		Topic:           "cam_event",
+		Topic:           "cam_notify_event",
 	})
 	if resp != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone) {
 		log.Infof("Push service reports status %v, deleting from database.", resp.Status)
@@ -201,24 +211,14 @@ func (p *WebPush) notifyOne(pc *PushConfig, payload []byte) error {
 	return nil
 }
 
-type Notification struct {
-	First  string
-	Second string
-}
-
-func (p *WebPush) NotifyAll() error {
-	var subs []*PushConfig
-	if err := p.db.Find(&subs).Error; err != nil {
+func (p *WebPush) Notify(notification *Notification) error {
+	payload, err := json.Marshal(notification)
+	if err != nil {
 		return err
 	}
 
-	n := &Notification{
-		First:  "Hello",
-		Second: "World!",
-	}
-
-	payload, err := json.Marshal(n)
-	if err != nil {
+	var subs []*PushConfig
+	if err := p.db.Find(&subs).Error; err != nil {
 		return err
 	}
 

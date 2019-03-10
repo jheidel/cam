@@ -13,6 +13,14 @@
     "@polymer/iron-scroll-target-behavior" "^3.0.0-pre.26"
     "@polymer/polymer" "^3.0.0"
 
+"@polymer/app-route@^3.0.2":
+  version "3.0.2"
+  resolved "https://registry.yarnpkg.com/@polymer/app-route/-/app-route-3.0.2.tgz#749096fb610fb15d27c7b68446406f30786cf93d"
+  integrity sha512-8Y34evmsaYh7ONr+zLwLzXaU0iOZZQj1E2uB3iaToQHbOP1POhKlnmAycBQ/eFB8BwrdSUBaDQk+rZhio78FQw==
+  dependencies:
+    "@polymer/iron-location" "^3.0.0-pre.26"
+    "@polymer/polymer" "^3.0.0"
+
 "@polymer/font-roboto@^3.0.1":
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/@polymer/font-roboto/-/font-roboto-3.0.2.tgz#80cdaa7225db2359130dfb2c6d9a3be1820020c3"
@@ -118,6 +126,13 @@
     "@polymer/iron-a11y-keys-behavior" "^3.0.0-pre.26"
     "@polymer/iron-resizable-behavior" "^3.0.0-pre.26"
     "@polymer/iron-scroll-target-behavior" "^3.0.0-pre.26"
+    "@polymer/polymer" "^3.0.0"
+
+"@polymer/iron-location@^3.0.0-pre.26":
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/@polymer/iron-location/-/iron-location-3.0.1.tgz#43a59fced248ea71db5833116fcdefa186b79527"
+  integrity sha512-almb+p/fdSi4bxG+vyXjY51fDZxHMxwiug51Lfvr86wZRXN/u21Y6BapxG5n9f0hPSy9fimjIAvaYmozi7VjyQ==
+  dependencies:
     "@polymer/polymer" "^3.0.0"
 
 "@polymer/iron-media-query@^3.0.0-pre.26":

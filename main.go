@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"cam/notify"
 	"cam/serve"
 	"cam/util"
 	"cam/video"
@@ -148,10 +149,16 @@ func main() {
 	metaws := serve.NewMetaUpdater()
 	fs.AddListener(metaws) // Receive filesystem updates
 
-	push, err := serve.NewWebPush(*rootPath)
+	push, err := notify.NewWebPush(*rootPath)
 	if err != nil {
 		log.Fatalf("Failed to set up web push: %v", err)
 	}
+
+	notifier := &notify.Notifier{
+		Listeners: []notify.NotifyListener{push},
+	}
+	motion.Triggers = append(motion.Triggers, notifier)
+	rec.Listeners = append(rec.Listeners, notifier)
 
 	go func() {
 		log.Infof("Hosting web frontend on port %d", *port)
