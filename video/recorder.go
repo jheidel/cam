@@ -13,8 +13,16 @@ type RecorderOptions struct {
 	BufferTime, RecordTime, MaxRecordTime time.Duration
 }
 
+type RecorderListener interface {
+	// Invoked when recording starts.
+	StartRecording(vr *VideoRecord)
+
+	// Invoked when recording stops.
+	StopRecording(vr *VideoRecord)
+}
+
 type Recorder struct {
-	Classifier *process.Classifier
+	Listeners []RecorderListener
 
 	producer *VideoSinkProducer
 	opts     *RecorderOptions
@@ -52,8 +60,8 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 			}
 			out.SetDetections(detection)
 			go out.Close()
-			if r.Classifier != nil {
-				r.Classifier.Disable()
+			for _, l := range r.Listeners {
+				l.StopRecording(out.Record)
 			}
 			recording = false
 			stop = nil
@@ -76,8 +84,8 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 					r.buf.FlushToSink(out)
 					recording = true
 					stopLong = time.NewTimer(r.opts.MaxRecordTime).C
-					if r.Classifier != nil {
-						r.Classifier.Enable()
+					for _, l := range r.Listeners {
+						l.StartRecording(out.Record)
 					}
 				}
 				stop = time.NewTimer(r.opts.RecordTime).C
@@ -116,22 +124,34 @@ func (r *Recorder) Close() {
 	<-c
 }
 
-// Trigger will start recording to the SinkProducer, including `BufferTime` of
+// MotionDetected will start recording to the SinkProducer, including `BufferTime` of
 // history and lasting for `RecordTime`. Subsequent triggers will reset
 // `RecordTime`.
-func (r *Recorder) Trigger() {
+func (r *Recorder) MotionDetected() {
 	r.trigger <- true
 }
 
-func (r *Recorder) Detection(d process.Detections) {
+func (r *Recorder) MotionClassified(d process.Detections) {
 	r.detection <- d
 }
 
 // ServeHTTP implements http.Handler interface for manual triggering.
 // TODO maybe move this to camera level?
 func (r *Recorder) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	r.Trigger()
+	r.MotionDetected()
 
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprintln(w, "ok")
+}
+
+type ClassifierRecordTrigger struct {
+	Classifier *process.Classifier
+}
+
+func (t *ClassifierRecordTrigger) StartRecording(vr *VideoRecord) {
+	t.Classifier.Enable()
+}
+
+func (t *ClassifierRecordTrigger) StopRecording(vr *VideoRecord) {
+	t.Classifier.Disable()
 }

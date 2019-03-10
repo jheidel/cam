@@ -16,7 +16,8 @@ type VideoSinkProducer struct {
 
 type VideoSink struct {
 	sink sink.Sink
-	vr   *VideoRecord
+
+	Record *VideoRecord
 
 	detections []process.Detection
 	p          *VideoSinkProducer
@@ -44,9 +45,9 @@ func (p *VideoSinkProducer) New(trigger source.Image) *VideoSink {
 	s = sink.NewFPSNormalize(s, p.FFmpegOptions.FPS)
 
 	return &VideoSink{
-		sink: s,
-		vr:   r,
-		p:    p,
+		sink:   s,
+		Record: r,
+		p:      p,
 	}
 }
 
@@ -63,15 +64,15 @@ func (w *VideoSink) SetDetections(detection process.Detections) {
 
 func (w *VideoSink) Close() {
 	w.sink.Close()
-	w.vr.UpdateVideo(w.detections)
+	w.Record.UpdateVideo(w.detections)
 
 	// Create video thumbnail.
-	paths := w.vr.Paths()
+	paths := w.Record.Paths()
 	c := w.p.VThumbProducer.Process(paths.VideoPath, paths.VThumbPath)
 	go func() {
 		if c != nil {
 			<-c
-			w.vr.UpdateVThumb()
+			w.Record.UpdateVThumb()
 		}
 	}()
 }

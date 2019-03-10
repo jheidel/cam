@@ -110,9 +110,6 @@ func main() {
 	msdefault := mjpegServer.NewStream(sink.MJPEGID{Name: "default"})
 	defer msdefault.Close()
 
-	rec := video.NewRecorder(vp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime, MaxRecordTime: maxtime})
-	defer rec.Close()
-
 	prototxt, err := Asset("models/MobileNetSSD_deploy.prototxt")
 	if err != nil {
 		log.Fatalf("Failed to load model prototxt: %v", err)
@@ -124,12 +121,18 @@ func main() {
 	}
 
 	classifier := process.NewClassifier(prototxt, caffeModel)
-	// Allow recorder to enable / disable the classifier.
-	rec.Classifier = classifier
+
+	rec := video.NewRecorder(vp, &video.RecorderOptions{BufferTime: buftime, RecordTime: rectime, MaxRecordTime: maxtime})
+	defer rec.Close()
+
+	// Enable / disable the classifier when recording.
+	rec.Listeners = append(rec.Listeners, &video.ClassifierRecordTrigger{
+		Classifier: classifier,
+	})
 
 	motion := process.NewMotion(mjpegServer, classifier, cap.Size())
 	// Trigger recorder on motion.
-	motion.Trigger = rec
+	motion.Triggers = append(motion.Triggers, rec)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

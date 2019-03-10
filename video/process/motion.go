@@ -10,11 +10,11 @@ import (
 	"gocv.io/x/gocv"
 )
 
-type Triggerable interface {
+type MotionTriggerable interface {
 	// Indicates that motion has been triggered.
-	Trigger()
+	MotionDetected()
 
-	Detection(d Detections)
+	MotionClassified(d Detections)
 }
 
 var (
@@ -28,7 +28,7 @@ var (
 
 type Motion struct {
 	// If set, will be triggered when motion is above the threshold.
-	Trigger Triggerable
+	Triggers []MotionTriggerable
 
 	BlendRatio float64
 
@@ -180,8 +180,8 @@ func (m *Motion) loop() {
 		if motionEnabled && len(contours) > 0 {
 			// TODO make this a metrics stream.
 			log.Debugf("Detected motion, %d contours", len(contours))
-			if m.Trigger != nil {
-				m.Trigger.Trigger()
+			for _, t := range m.Triggers {
+				t.MotionDetected()
 			}
 		}
 
@@ -191,8 +191,8 @@ func (m *Motion) loop() {
 		// classifier has been enabled)
 		if d := m.classifier.Classify(input); len(d) > 0 {
 			log.Infof("Classifier had detection results: %v", d.DebugString())
-			if m.Trigger != nil {
-				m.Trigger.Detection(d)
+			for _, t := range m.Triggers {
+				t.MotionClassified(d)
 			}
 		}
 
