@@ -10,7 +10,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
+
+	"cam/video/sink"
 )
+
+// ColorThresh denotes the minimum value for an image to be considered color.
+const ColorThresh = 15
 
 // Detection classes for MobileNet SSD
 var mobileNetClasses = map[int]string{
@@ -43,6 +48,9 @@ type Classifier struct {
 	// Resized 300x300 image for image classification.
 	small gocv.Mat
 
+	diff     gocv.Mat
+	diffBlur gocv.Mat
+
 	enabled bool
 	l       sync.Mutex
 }
@@ -53,8 +61,10 @@ func NewClassifier(prototxt, caffeModel []byte) *Classifier {
 		log.Fatalf("Failed to read caffe model to net: %v", err)
 	}
 	return &Classifier{
-		net:   net,
-		small: gocv.NewMat(),
+		net:      net,
+		small:    gocv.NewMat(),
+		diff:     gocv.NewMat(),
+		diffBlur: gocv.NewMat(),
 	}
 }
 
@@ -92,7 +102,15 @@ func (d Detections) DebugString() string {
 	return strings.Join(ds, ", ")
 }
 
-func (cl *Classifier) Classify(input gocv.Mat) Detections {
+func (cl *Classifier) ImageColorValue(input gocv.Mat) float32 {
+	channels := gocv.Split(input)
+	gocv.AbsDiff(channels[1], channels[2], &cl.diff)
+	gocv.Blur(cl.diff, &cl.diffBlur, image.Point{X: 10, Y: 10})
+	_, maxDiff, _, _ := gocv.MinMaxIdx(cl.diffBlur)
+	return maxDiff
+}
+
+func (cl *Classifier) Classify(input gocv.Mat, debug *sink.MJPEGStreamPool) Detections {
 	if !cl.isEnabled() {
 		return nil
 	}
@@ -102,9 +120,16 @@ func (cl *Classifier) Classify(input gocv.Mat) Detections {
 		// TODO export this as a streaming stat.
 		log.Debugf("Classifier ran in %v", time.Now().Sub(start).String())
 	}()
+	output := make(Detections)
 
 	scale := image.Point{X: 300, Y: 300}
 	gocv.Resize(input, &cl.small, scale, 0, 0, gocv.InterpolationLinear)
+
+	if diff := cl.ImageColorValue(cl.small); diff < ColorThresh {
+		// Refuse to classify grayscale.
+		log.Debugf("Refusing to classify grayscale image with color value %f", diff)
+		return output
+	}
 
 	blob := gocv.BlobFromImage(cl.small, 0.007843, scale, gocv.NewScalar(127.5, 127.5, 127.5, 0), false, false)
 	defer blob.Close()
@@ -117,7 +142,6 @@ func (cl *Classifier) Classify(input gocv.Mat) Detections {
 	detections := gocv.GetBlobChannel(detBlob, 0, 0)
 	defer detections.Close()
 
-	output := make(Detections)
 	for r := 0; r < detections.Rows(); r++ {
 		classID := int(detections.GetFloatAt(r, 1))
 		classMn := mobileNetClasses[classID]

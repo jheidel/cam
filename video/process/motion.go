@@ -189,7 +189,7 @@ func (m *Motion) loop() {
 
 		// Run classification (note that this will only produce results if the
 		// classifier has been enabled)
-		if d := m.classifier.Classify(input); len(d) > 0 {
+		if d := m.classifier.Classify(input, debug); len(d) > 0 {
 			log.Infof("Classifier had detection results: %v", d.DebugString())
 			for _, t := range m.Triggers {
 				t.MotionClassified(d)
