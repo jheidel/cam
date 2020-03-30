@@ -320,6 +320,10 @@ func (f *Filesystem) doRefresh() error {
 	if err != nil {
 		return err
 	}
+  log.Infof("Found %d records in filesystem", len(fsm))
+  if len(fsm) == 0 {
+    return fmt.Errorf("Failed to look up records from filesystem, found zero")
+  }
 
 	// Determine the set of identifiers present in the database.
 	dbm := make(map[string]bool)
@@ -330,6 +334,10 @@ func (f *Filesystem) doRefresh() error {
 	for _, id := range found {
 		dbm[id] = true
 	}
+  log.Infof("Found %d records in database", len(dbm))
+  if len(dbm) == 0 {
+    return fmt.Errorf("Failed to look up records from db, found zero")
+  }
 
 	// `dbm` becomes the records that are not present on the filesystem.
 	for k := range fsm {
@@ -345,7 +353,23 @@ func (f *Filesystem) doRefresh() error {
 		return nil
 	}
 
-	log.Infof("%d records missing in database, %d records extra. Starting sync.", len(fsm), len(dbm))
+	var deleted []string
+	if err := f.db.Unscoped().Model(&VideoRecord{}).Where("deleted_at IS NOT NULL").Pluck("identifier", &deleted).Error; err != nil {
+		return fmt.Errorf("failed to look up list of deleted db identifiers: %v", err)
+	}
+  if len(deleted) == 0 {
+    return fmt.Errorf("Failed to look up deleted records from filesystem, found zero")
+  }
+  log.Infof("Found %d deleted records in database", len(deleted))
+	delm := make(map[string]*VideoRecord)
+  for _, k := range deleted {
+    if vr, ok := fsm[k]; ok {
+      delete(fsm, k)
+      delm[k] = vr
+    }
+  }
+
+	log.Infof("%d records missing in database, %d records extra in database. %d deleted records in filesystem. Starting sync.", len(fsm), len(dbm), len(delm))
 	start := time.Now()
 	defer func() {
 		et := time.Since(start)
@@ -367,6 +391,11 @@ func (f *Filesystem) doRefresh() error {
 		vr := f.GetRecordByID(id)
 		vr.Delete()
 	}
+
+  // Remove deleted records from filesystem
+  for _, vr := range delm {
+    vr.Delete()
+  }
 
 	// Insert missing records.
 	for _, vr := range fsm {
