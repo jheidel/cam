@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"cam/config"
 	"cam/video"
 	"cam/video/process"
 	"sync"
@@ -11,10 +12,6 @@ import (
 
 const (
 	ConfidenceThreshold = 0.9
-
-	// TODO: move quiet hours to server configuration
-	NotificationHoursStart = 6
-	NotificationHoursEnd   = 20
 )
 
 // Notification is sent to all NotifyListeners registered with Notifier.
@@ -63,7 +60,7 @@ func (n *Notifier) MotionClassified(detection process.Detections) {
 
 	ts := n.vr.TriggeredAt
 
-	if ts.Hour() < NotificationHoursStart || ts.Hour() >= NotificationHoursEnd {
+	if ts.Hour() < config.Get().NotificationHoursStart || ts.Hour() >= config.Get().NotificationHoursEnd {
 		log.Infof("Would send notification, but currently in quiet hours.")
 		return
 	}

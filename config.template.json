@@ -1,0 +1,18 @@
+{
+  "URI": "/home/jeff/db/20180502-182743-0700_video.mp4",
+  "FilesystemMaxSize": 107374182400,
+
+  "NotificationHoursStart": 6,
+  "NotificationHoursEnd": 21,
+
+  "MotionBounds": [
+      {"X": 500, "Y": 550},
+      {"X": 800, "Y": 100},
+      {"X": 1600, "Y": 100},
+      {"X": 1600, "Y": 550},
+      {"X": 1000, "Y": 850},
+      {"X": 200, "Y": 850}
+  ],
+  "MotionThresh": 48,
+  "MotionErode": 15
+}

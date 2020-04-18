@@ -1,6 +1,7 @@
 package process
 
 import (
+	"cam/config"
 	"cam/video/sink"
 	"image"
 	"image/color"
@@ -56,7 +57,8 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 	mask := gocv.NewMatWithSize(sz.Y, sz.X, gocv.MatTypeCV8UC3)
 	gocv.Rectangle(&mask, image.Rectangle{Min: image.Point{}, Max: sz}, color.RGBA{0, 0, 0, 0}, -1)
 
-	bounds := []image.Point{{600, 550}, {1300, 550}, {1900, 1050}, {120, 1050}}
+	// TODO support live reload of mask
+	bounds := config.Get().MotionBounds
 	gocv.FillPoly(&mask, [][]image.Point{bounds}, color.RGBA{255, 255, 255, 255})
 
 	// TODO fill the mask.
@@ -74,7 +76,7 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 
 		// history=500, threshold=16
 		// TODO: make history based on analysis FPS.
-		d: gocv.NewBackgroundSubtractorMOG2(60, 16),
+		d: gocv.NewBackgroundSubtractorMOG2(60, config.Get().MotionThresh),
 
 		blend:   gocv.NewMat(),
 		blendin: gocv.NewMat(),
@@ -88,7 +90,10 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 		crop: gocv.BoundingRect(bounds),
 
 		// TODO allow reconfiguring structring element.
-		sts: gocv.GetStructuringElement(gocv.MorphCross, image.Point{X: 10, Y: 10}),
+		sts: gocv.GetStructuringElement(gocv.MorphCross, image.Point{
+			X: config.Get().MotionErode,
+			Y: config.Get().MotionErode,
+		}),
 		stl: gocv.GetStructuringElement(gocv.MorphEllipse, image.Point{X: 30, Y: 30}),
 
 		classifier: classifier,

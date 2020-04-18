@@ -2,3 +2,6 @@ bindata.go
 cam
 web/build/**
 web/bower_components/**
+
+*.swp
+*.swo

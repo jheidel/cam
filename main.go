@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"cam/config"
 	"cam/notify"
 	"cam/serve"
 	"cam/util"
@@ -24,30 +26,35 @@ import (
 )
 
 var (
-	port     = flag.Int("port", 8443, "Port to host http web frontend.")
-	rootPath = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
-	certPath = flag.String("cert", "/home/jeff/devkeys/cert.pem", "Path to cert.pem file")
-	keyPath  = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
+	port       = flag.Int("port", 8443, "Port to host http web frontend.")
+	rootPath   = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
+	certPath   = flag.String("cert", "/home/jeff/devkeys/cert.pem", "Path to cert.pem file")
+	keyPath    = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
+	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
 )
+
+func topLevelContext() context.Context {
+	ctx, cancelf := context.WithCancel(context.Background())
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigs
+		log.Warnf("Caught signal %q, shutting down.", sig)
+		cancelf()
+	}()
+	return ctx
+}
 
 func main() {
 	flag.Parse()
 
-	// TODO migrate to flags once you have a config file.
-	if len(os.Args) < 2 {
-		fmt.Println("How to run:\n\t./main [camera URI]")
-		os.Exit(1)
-		return
-	}
+	ctx := topLevelContext()
 
 	// Configure logging.
 	customFormatter := new(log.TextFormatter)
 	customFormatter.TimestampFormat = "2006-01-02 15:04:05"
 	customFormatter.FullTimestamp = true
 	log.SetFormatter(customFormatter)
-
-	// parse args
-	uri := os.Args[1]
 
 	ffmpegp, err := util.LocateFFmpeg()
 	if err != nil {
@@ -59,6 +66,15 @@ func main() {
 		return
 	} else {
 		log.Infof("Located ffmpeg binary, %v", ffmpegp)
+	}
+
+	if err := config.Load(ctx, *configFile); err != nil {
+		log.Fatalf("Failed to load initial config: %v", err)
+	}
+
+	uri := config.Get().URI
+	if uri == "" {
+		log.Fatalf("URI is required")
 	}
 
 	fps := 15
@@ -73,9 +89,6 @@ func main() {
 	cap := source.NewVideoCapture(uri, inputfps)
 	// defer cap.Close()
 
-	//window := sink.NewWindow("Output")
-	//defer window.Close()
-
 	c := cap.Get()
 
 	buftime := 2 * time.Second
@@ -85,8 +98,7 @@ func main() {
 
 	fsOpts := video.FilesystemOptions{
 		BasePath: *rootPath,
-		// DO NOT SUBMIT
-		MaxSize: 5 << 30, // 100 GiB
+		MaxSize:  config.Get().FilesystemMaxSize,
 	}
 	fs, err := video.NewFilesystem(fsOpts)
 	if err != nil {
@@ -135,9 +147,6 @@ func main() {
 	// Trigger recorder on motion.
 	motion.Triggers = append(motion.Triggers, rec)
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
 	meta := &serve.MetaServer{
 		FS: fs,
 	}
@@ -180,7 +189,7 @@ func main() {
 		log.Infof("HTTP server exited with status %v", err)
 	}()
 
-	for {
+	for ctx.Err() == nil {
 		select {
 		case i := <-c:
 			msraw.Put(i.Mat)
@@ -195,9 +204,9 @@ func main() {
 			//video.Put(i)
 			rec.Put(i)
 			i.Release()
-		case sig := <-sigs:
-			log.Warningf("Caught signal %v", sig)
+		case <-ctx.Done():
 			return
 		}
 	}
+	log.Warnf("Exit")
 }
