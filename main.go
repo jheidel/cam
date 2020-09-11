@@ -22,6 +22,7 @@ import (
 	"cam/video/source"
 
 	assetfs "github.com/elazarl/go-bindata-assetfs"
+  "github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -175,7 +176,7 @@ func main() {
 		log.Infof("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
 		http.Handle("/trigger", rec)
-		http.Handle("/events", meta)
+		http.Handle("/events", handlers.CompressHandler(meta))
 		http.Handle("/eventsws", metaws)
 		http.Handle("/delete", delete)
 		http.Handle("/video", serve.NewVideoServer(fs))
