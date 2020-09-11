@@ -72,7 +72,8 @@ class CamEvents extends PolymerElement {
     </div>
 
 
-    <iron-ajax id="ajax" url="/events" last-response="{{response}}" handle-as="json" auto=""></iron-ajax>
+    <iron-ajax loading="{{loading_}}" id="ajax" url="/events" last-response="{{response}}" handle-as="json" auto=""></iron-ajax>
+    <div hidden\$="[[!loading_]]">Loading...</div>
     <div id="empty" hidden\$="[[!empty_(response.Items)]]">
           <iron-icon icon="info"></iron-icon>
           No events recorded.
@@ -93,6 +94,10 @@ class CamEvents extends PolymerElement {
             response: {
                     type: Object,
                     value: null,
+            },
+            loading_: {
+                    type: Boolean,
+                    value: false,
             }
     };
   }
