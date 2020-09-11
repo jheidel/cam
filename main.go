@@ -28,7 +28,7 @@ import (
 var (
 	port       = flag.Int("port", 8443, "Port to host http web frontend.")
 	rootPath   = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
-	certPath   = flag.String("cert", "/home/jeff/devkeys/cert.pem", "Path to cert.pem file")
+	certPath   = flag.String("cert", "/home/jeff/devkeys/fullchain.pem", "Path to cert.pem file")
 	keyPath    = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
 	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
 )
@@ -163,8 +163,10 @@ func main() {
 		log.Fatalf("Failed to set up web push: %v", err)
 	}
 
+	notifyws := serve.NewMetaUpdater()
+
 	notifier := &notify.Notifier{
-		Listeners: []notify.NotifyListener{push},
+		Listeners: []notify.NotifyListener{push, notifyws},
 	}
 	motion.Triggers = append(motion.Triggers, notifier)
 	rec.Listeners = append(rec.Listeners, notifier)
@@ -179,6 +181,7 @@ func main() {
 		http.Handle("/video", serve.NewVideoServer(fs))
 		http.Handle("/thumb", serve.NewThumbServer(fs))
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))
+		http.Handle("/notifyws", notifyws)
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))

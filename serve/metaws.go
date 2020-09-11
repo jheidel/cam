@@ -1,6 +1,8 @@
 package serve
 
 import (
+	"cam/notify"
+
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -53,6 +55,11 @@ func (m *MetaUpdater) FilesystemUpdated() {
 	m.notify <- true
 }
 
+func (m *MetaUpdater) Notify(n *notify.Notification) error {
+	m.notify <- true
+	return nil
+}
+
 func (m *MetaUpdater) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws, err := m.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -77,6 +84,17 @@ func (m *MetaUpdater) serve(ws *websocket.Conn) {
 	notifyc := make(chan bool)
 	m.addc <- notifyc
 	defer func() { m.delc <- notifyc }()
+
+	// Even though we don't care about incoming messages, we need to read from
+	// the socket in order to process control messages.
+	go func() {
+		for {
+			if _, _, err := ws.NextReader(); err != nil {
+				ws.Close()
+				return
+			}
+		}
+	}()
 
 	for {
 		select {
