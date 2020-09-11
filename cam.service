@@ -1,0 +1,15 @@
+[Unit]
+Description=Security camera service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/go/src/cam/
+ExecStart=/root/go/src/cam/cam --root="/data/gatecam/gate/" --cert="/etc/letsencrypt/live/fallcity.jeffheidel.com/fullchain.pem" --key="/etc/letsencrypt/live/fallcity.jeffheidel.com/privkey.pem" --port=8889 --config="/root/go/src/cam/config.heidel.json"
+Restart=always
+MemoryMax=10G
+CPUQuota=400%
+
+[Install]
+WantedBy=multi-user.target
