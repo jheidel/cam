@@ -1,11 +1,13 @@
 package process
 
 import (
-	"cam/config"
-	"cam/video/sink"
 	"image"
 	"image/color"
 	"time"
+
+	"cam/config"
+	"cam/util"
+	"cam/video/sink"
 
 	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
@@ -111,10 +113,10 @@ func (m *Motion) loop() {
 	debug := m.mjpeg.NewStreamPool()
 	defer debug.Close()
 
-	motionEnabled := false
+	motionEnabled := util.NewEvent()
 	time.AfterFunc(StartupTimeout, func() {
 		log.Infof("Now watching for motion.")
-		motionEnabled = true
+		motionEnabled.Notify()
 	})
 
 	first := true
@@ -182,7 +184,7 @@ func (m *Motion) loop() {
 			gocv.Rectangle(&m.draw, bounds.Add(m.crop.Min), color.RGBA{255, 0, 0, 255}, 2)
 		}
 
-		if motionEnabled && len(contours) > 0 {
+		if motionEnabled.HasBeenNotified() && len(contours) > 0 {
 			// TODO make this a metrics stream.
 			log.Debugf("Detected motion, %d contours", len(contours))
 			for _, t := range m.Triggers {

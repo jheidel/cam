@@ -5,6 +5,8 @@ import (
 	"image"
 	"time"
 
+	"cam/util"
+
 	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
 )
@@ -24,8 +26,8 @@ type VideoCapture struct {
 	// to the actual framerate.
 	FPS int
 
-	initC chan bool
-	init  bool
+	init *util.Event
+
 	close chan chan bool
 
 	cap       *gocv.VideoCapture
@@ -45,23 +47,9 @@ func NewVideoCapture(uri string, fps int) *VideoCapture {
 	return &VideoCapture{
 		URI:   uri,
 		FPS:   fps,
-		initC: make(chan bool, 1),
 		close: make(chan chan bool, 1),
 		pool:  NewMatPool(),
-	}
-}
-
-func (v *VideoCapture) waitInit() {
-	if !v.init {
-		<-v.initC
-		v.initC <- true
-	}
-}
-
-func (v *VideoCapture) setInit() {
-	if !v.init {
-		v.init = true
-		v.initC <- true // Unblock anyone waiting on init.
+		init:  util.NewEvent(),
 	}
 }
 
@@ -82,7 +70,7 @@ func (v *VideoCapture) connect() error {
 	v.sz = image.Point{X: m.Cols(), Y: m.Rows()}
 	v.cap = cap
 
-	v.setInit()
+	v.init.Notify()
 	return nil
 }
 
@@ -158,7 +146,7 @@ func (v *VideoCapture) Get() <-chan Image {
 
 // Size gets the size of the capture source. This will block until the capture source is initially opened.
 func (v *VideoCapture) Size() image.Point {
-	v.waitInit()
+	v.init.Wait()
 	return v.sz
 }
 
