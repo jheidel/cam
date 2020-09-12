@@ -320,10 +320,10 @@ func (f *Filesystem) doRefresh() error {
 	if err != nil {
 		return err
 	}
-  log.Infof("Found %d records in filesystem", len(fsm))
-  if len(fsm) == 0 {
-    return fmt.Errorf("Failed to look up records from filesystem, found zero")
-  }
+	log.Infof("Found %d records in filesystem", len(fsm))
+	if len(fsm) == 0 {
+		return fmt.Errorf("Failed to look up records from filesystem, found zero")
+	}
 
 	// Determine the set of identifiers present in the database.
 	dbm := make(map[string]bool)
@@ -334,10 +334,10 @@ func (f *Filesystem) doRefresh() error {
 	for _, id := range found {
 		dbm[id] = true
 	}
-  log.Infof("Found %d records in database", len(dbm))
-  if len(dbm) == 0 {
-    return fmt.Errorf("Failed to look up records from db, found zero")
-  }
+	log.Infof("Found %d records in database", len(dbm))
+	if len(dbm) == 0 {
+		return fmt.Errorf("Failed to look up records from db, found zero")
+	}
 
 	// `dbm` becomes the records that are not present on the filesystem.
 	for k := range fsm {
@@ -357,17 +357,17 @@ func (f *Filesystem) doRefresh() error {
 	if err := f.db.Unscoped().Model(&VideoRecord{}).Where("deleted_at IS NOT NULL").Pluck("identifier", &deleted).Error; err != nil {
 		return fmt.Errorf("failed to look up list of deleted db identifiers: %v", err)
 	}
-  if len(deleted) == 0 {
-    return fmt.Errorf("Failed to look up deleted records from filesystem, found zero")
-  }
-  log.Infof("Found %d deleted records in database", len(deleted))
+	if len(deleted) == 0 {
+		return fmt.Errorf("Failed to look up deleted records from filesystem, found zero")
+	}
+	log.Infof("Found %d deleted records in database", len(deleted))
 	delm := make(map[string]*VideoRecord)
-  for _, k := range deleted {
-    if vr, ok := fsm[k]; ok {
-      delete(fsm, k)
-      delm[k] = vr
-    }
-  }
+	for _, k := range deleted {
+		if vr, ok := fsm[k]; ok {
+			delete(fsm, k)
+			delm[k] = vr
+		}
+	}
 
 	log.Infof("%d records missing in database, %d records extra in database. %d deleted records in filesystem. Starting sync.", len(fsm), len(dbm), len(delm))
 	start := time.Now()
@@ -392,10 +392,10 @@ func (f *Filesystem) doRefresh() error {
 		vr.Delete()
 	}
 
-  // Remove deleted records from filesystem
-  for _, vr := range delm {
-    vr.Delete()
-  }
+	// Remove deleted records from filesystem
+	for _, vr := range delm {
+		vr.Delete()
+	}
 
 	// Insert missing records.
 	for _, vr := range fsm {
@@ -450,7 +450,7 @@ func (f *Filesystem) doGarbageCollect() {
 	gcStart := time.Now()
 	var toDelete []*VideoRecord
 	var total int64
-	for _, r := range f.GetRecords() {
+	for _, r := range f.GetRecords(&RecordsFilter{}) {
 		total += r.Size
 
 		overSize := func() bool {
@@ -511,10 +511,18 @@ func (r *VideoRecord) Delete() {
 	r.fs.notifyListeners()
 }
 
+type RecordsFilter struct {
+	HaveClassification bool
+}
+
 // GetRecords provides the current filesystem. Output be sorted by most recent first.
-func (f *Filesystem) GetRecords() []*VideoRecord {
+func (f *Filesystem) GetRecords(filter *RecordsFilter) []*VideoRecord {
 	var records []*VideoRecord
-	if err := f.db.Order("triggered_at DESC").Find(&records).Error; err != nil {
+	q := f.db.Order("triggered_at DESC")
+	if filter.HaveClassification {
+		q = q.Where("have_classification = true")
+	}
+	if err := q.Find(&records).Error; err != nil {
 		log.Errorf("Record lookup failed: %v", err)
 		return []*VideoRecord{}
 	}

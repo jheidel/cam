@@ -47,8 +47,8 @@ type MetaServer struct {
 	FS *video.Filesystem
 }
 
-func (s *MetaServer) BuildResponse() *MetaResponse {
-	records := s.FS.GetRecords()
+func (s *MetaServer) BuildResponse(filter *video.RecordsFilter) *MetaResponse {
+	records := s.FS.GetRecords(filter)
 
 	resp := &MetaResponse{}
 	var sz int64
@@ -63,7 +63,14 @@ func (s *MetaServer) BuildResponse() *MetaResponse {
 }
 
 func (s *MetaServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	js, err := json.Marshal(s.BuildResponse())
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	opts := &video.RecordsFilter{
+		HaveClassification: r.Form.Get("have_classification") != "",
+	}
+	js, err := json.Marshal(s.BuildResponse(opts))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

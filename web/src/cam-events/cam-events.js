@@ -5,6 +5,8 @@ import '@polymer/iron-icon/iron-icon.js';
 import '@polymer/iron-icons/iron-icons.js';
 import '@polymer/iron-list/iron-list.js';
 import '@polymer/paper-card/paper-card.js';
+import '@polymer/paper-checkbox/paper-checkbox.js';
+import '@polymer/paper-spinner/paper-spinner.js';
 import '../cam-event-thumb/cam-event-thumb.js';
 import { html } from '@polymer/polymer/lib/utils/html-tag.js';
 import moment from 'moment/src/moment.js';
@@ -20,9 +22,11 @@ class CamEvents extends PolymerElement {
       .item {
         padding: 10px;
       }
+      .placeholder {
+          padding: 10px;
+          margin-left: 20px;
+      }
       #empty {
-              padding: 10px;
-              margin-left: 20px;
               color: #666;
               background-color: #ddd;
               display: inline-flex;
@@ -43,6 +47,10 @@ class CamEvents extends PolymerElement {
 
         display: flex;
         justify-content: space-between;
+      }
+      .options {
+        padding-left: 15px;
+        padding-bottom: 10px;
       }
       .header > div {
         font-size: small;
@@ -71,20 +79,29 @@ class CamEvents extends PolymerElement {
             </div>
     </div>
 
-
-    <iron-ajax loading="{{loading_}}" id="ajax" url="/events" last-response="{{response}}" handle-as="json" auto=""></iron-ajax>
-    <div hidden\$="[[!loading_]]">Loading...</div>
-    <div id="empty" hidden\$="[[!empty_(response.Items)]]">
-          <iron-icon icon="info"></iron-icon>
-          No events recorded.
+    <div class="options">
+      <paper-checkbox checked="{{haveClassification_}}">Only Show Events with Detections</paper-checkbox>
     </div>
-    <iron-list items="[[response.Items]]" as="item" grid="" scroll-target="document">
-      <template>
-        <div class="item">
-          <cam-event-thumb event="[[item]]"></cam-event-thumb>
-        </div>
-      </template>
-    </iron-list>
+
+    <iron-ajax loading="{{loading_}}" id="ajax" url="/events" params="[[buildParams_(haveClassification_)]]" last-response="{{response}}" handle-as="json" auto=""></iron-ajax>
+
+    <div hidden\$="[[!loading_]]" class="placeholder">
+      <paper-spinner active></paper-spinner>
+    </div>
+
+    <div hidden\$="[[loading_]]">
+      <div id="empty" hidden\$="[[!empty_(response.Items)]]" class="placeholder">
+            <iron-icon icon="info"></iron-icon>
+            No events recorded.
+      </div>
+      <iron-list items="[[response.Items]]" as="item" grid="" scroll-target="document">
+        <template>
+          <div class="item">
+            <cam-event-thumb event="[[item]]"></cam-event-thumb>
+          </div>
+        </template>
+      </iron-list>
+    </div>
 `;
   }
 
@@ -95,11 +112,23 @@ class CamEvents extends PolymerElement {
                     type: Object,
                     value: null,
             },
+            haveClassification_: {
+                    type: Boolean,
+                    value: true,
+            },
             loading_: {
                     type: Boolean,
                     value: false,
             }
     };
+  }
+
+  buildParams_(haveClassification) {
+    let params = {};
+    if (haveClassification) {
+      params["have_classification"] = "true";
+    }
+    return params;
   }
 
   ready() {
