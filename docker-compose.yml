@@ -8,8 +8,35 @@ services:
       - /home/jeff/db:/mnt/db
       - /home/jeff/devkeys:/mnt/cert
       - /home/jeff/devconfig:/mnt/config
+    environment:
+      - DATABASE=root:root@(mysql)/cam
     deploy:
       resources:
         limits:
           cpus: '4.0'
           memory: '10G'
+    depends_on:
+      - mysql
+
+  mysql:
+    image: mariadb:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=cam
+    volumes:
+      - db-data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - PMA_HOST=mysql
+      - PMA_USER=root
+      - PMA_PASSWORD=root
+    ports:
+      - "8444:80"
+    depends_on:
+      - mysql
+
+volumes:
+  db-data:

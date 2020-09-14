@@ -40,17 +40,17 @@ RUN go run ./cmd/version/main.go
 
 WORKDIR /root/go/src/cam/
 
-# Copy all source files.
-COPY . .
-
-# Copy built web package from the previous stage.
-COPY --from=cam-builder-web /web/build/ /root/go/src/cam/web/build/
-
 # Install go-bindata executable
 # TODO(jheidel): This tool is deprecated and it would be a good idea to switch
 # onto a maintained go asset package.
 RUN apt install -y go-bindata
 RUN go get -u github.com/jteeuwen/go-bindata/...
+
+# Copy all source files.
+COPY . .
+
+# Copy built web package from the previous stage.
+COPY --from=cam-builder-web /web/build/ /root/go/src/cam/web/build/
 
 RUN make build
 RUN make libs
@@ -62,11 +62,6 @@ RUN make libs
 #FROM alpine
 FROM ubuntu:latest
 WORKDIR /app
-# Install application
-COPY --from=cam-builder-go /root/go/src/cam/cam /app
-# Pull shared libraries for opencv and dependencies
-COPY --from=cam-builder-go /root/go/src/cam/libs /usr/local/lib
-RUN ldconfig
 
 # Install dependencies
 RUN apt update && apt install -y ffmpeg tzdata
@@ -84,6 +79,12 @@ RUN mkdir -p /mnt/cert
 # Use local timezone.
 # TODO: make image timezone-agnostic (currently used for quiet hours)
 RUN ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
+
+# Install application
+COPY --from=cam-builder-go /root/go/src/cam/cam /app
+# Pull shared libraries for opencv and dependencies
+COPY --from=cam-builder-go /root/go/src/cam/libs /usr/local/lib
+RUN ldconfig
 
 EXPOSE 8443
 CMD ["./cam", "--port", "8443", "--root", "/mnt/db", "--config", "/mnt/config/config.json", "--cert", "/mnt/cert/fullchain.pem", "--key", "/mnt/cert/privkey.pem"]

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/pillash/mp4util"
 	log "github.com/sirupsen/logrus"
@@ -31,8 +32,8 @@ const (
 	// See https://golang.org/src/time/format.go.
 	FileTimeLayout = "20060102-150405Z0700"
 
-	// DatabaseFile is the path to the sqlite3 database.
-	DatabaseFile = "cam.db"
+	// LegacyDatabaseFile is the path to the sqlite3 database.
+	LegacyDatabaseFile = "cam.db"
 )
 
 var (
@@ -188,8 +189,11 @@ func (r *VideoRecord) UpdateVThumb() {
 }
 
 type FilesystemOptions struct {
+	// URI for connecting to the database. If empty, will fall back to legacy sqlite.
+	DatabaseURI string
+
 	// Root directory for the filesystem. All videos will be stored here, along
-	// with the sqlite database file.
+	// with the legacy sqlite database file (if mysql not configured).
 	BasePath string
 
 	// MaxSize defines the total size threshold for garbage collection of old
@@ -211,18 +215,97 @@ type Filesystem struct {
 	l                sync.Mutex
 }
 
-func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
-	if err := os.MkdirAll(opts.BasePath, 0755); err != nil {
-		return nil, err
-	}
+type dbConnector struct {
+	SqlitePath string
+	MysqlURI   string
+}
 
-	path := filepath.Join(opts.BasePath, DatabaseFile)
-	db, err := gorm.Open("sqlite3", path)
+func (c *dbConnector) connectSqlite(create bool) (*gorm.DB, error) {
+	if _, err := os.Stat(c.SqlitePath); os.IsNotExist(err) && !create {
+		return nil, nil // No legacy database present.
+	}
+	db, err := gorm.Open("sqlite3", c.SqlitePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open legacy database: %v", err)
+	}
+	db.AutoMigrate(&VideoRecord{})
+	log.Infof("Connected to sqlite3 database")
+	return db, nil
+}
+
+func (c *dbConnector) connectMysql() (*gorm.DB, error) {
+	if c.MysqlURI == "" {
+		return nil, nil
+	}
+	db, err := gorm.Open("mysql", c.MysqlURI+"?charset=utf8&parseTime=True&loc=Local")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
 	db.AutoMigrate(&VideoRecord{})
+	log.Infof("Connected to mysql database")
+	return db, nil
+}
 
+func (c *dbConnector) migrate(past, future *gorm.DB) error {
+	log.Infof("Migrating legacy sqlite database to mysql")
+	var records []VideoRecord
+	if err := past.Find(&records).Error; err != nil {
+		return fmt.Errorf("%v reading from past", err)
+	}
+	log.Infof("Loaded %d records from past", len(records))
+	for _, rec := range records {
+		if err := future.Create(&rec).Error; err != nil {
+			return fmt.Errorf("%v writing to future", err)
+		}
+	}
+	if err := past.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(c.SqlitePath, c.SqlitePath+".migrated"); err != nil {
+		return fmt.Errorf("%v moving legacy database", err)
+	}
+	return nil
+}
+
+// Connect creates a database connection.
+// If mysql is available, use that directly.
+// If an existing sqlite database exists, migrate it.
+// Otherwise, fallback to a sqlite database.
+func (c *dbConnector) Connect() (*gorm.DB, error) {
+	sqlite, err := c.connectSqlite(false)
+	if err != nil {
+		return nil, err
+	}
+	mysql, err := c.connectMysql()
+	if err != nil {
+		return nil, err
+	}
+	if sqlite != nil && mysql != nil {
+		if err := c.migrate(sqlite, mysql); err != nil {
+			return nil, fmt.Errorf("failed migration: %v", err)
+		}
+	}
+	if mysql != nil {
+		return mysql, nil
+	}
+	if sqlite != nil {
+		return sqlite, nil
+	}
+	return c.connectSqlite(true)
+}
+
+func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
+	if err := os.MkdirAll(opts.BasePath, 0755); err != nil {
+		return nil, err
+	}
+	connector := &dbConnector{
+		SqlitePath: filepath.Join(opts.BasePath, LegacyDatabaseFile),
+		MysqlURI:   opts.DatabaseURI,
+	}
+	db, err := connector.Connect()
+	if err != nil {
+		return nil, err
+	}
 	f := &Filesystem{
 		db:      db,
 		options: opts,
@@ -242,7 +325,7 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 				f.doGarbageCollect()
 			case <-rt.C:
 				if err := f.doRefresh(); err != nil {
-					log.Errorf("Periodic ilesystem refresh failed: %v", err)
+					log.Errorf("Periodic filesystem refresh failed: %v", err)
 				}
 			}
 		}
