@@ -22,7 +22,7 @@ import (
 	"cam/video/source"
 
 	assetfs "github.com/elazarl/go-bindata-assetfs"
-  "github.com/gorilla/handlers"
+	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -32,6 +32,7 @@ var (
 	certPath   = flag.String("cert", "/home/jeff/devkeys/fullchain.pem", "Path to cert.pem file")
 	keyPath    = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
 	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
+	database   = flag.String("database", os.Getenv("DATABASE"), "Mysql database path. If empty, use sqlite file under root instead")
 )
 
 func topLevelContext() context.Context {
@@ -98,8 +99,9 @@ func main() {
 	maxtime := 5 * time.Minute
 
 	fsOpts := video.FilesystemOptions{
-		BasePath: *rootPath,
-		MaxSize:  config.Get().FilesystemMaxSize,
+		DatabaseURI: *database,
+		BasePath:    *rootPath,
+		MaxSize:     config.Get().FilesystemMaxSize,
 	}
 	fs, err := video.NewFilesystem(fsOpts)
 	if err != nil {

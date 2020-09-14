@@ -22,4 +22,9 @@ build: assetfs go
 
 clean:
 	cd web && $(MAKE) clean
-	rm bindata.go cam
+	rm -rf bindata.go cam libs
+
+# Assemble all shared library dependencies (used for docker image building)
+libs:
+	mkdir libs
+	ldd ./cam | grep '=> /' | awk '{print $$3}' | xargs -I{} readlink -f {} | xargs -I{} cp {} libs/
