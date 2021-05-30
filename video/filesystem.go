@@ -237,7 +237,7 @@ func (c *dbConnector) connectMysql() (*gorm.DB, error) {
 	if c.MysqlURI == "" {
 		return nil, nil
 	}
-	db, err := gorm.Open("mysql", c.MysqlURI+"?charset=utf8&parseTime=True&loc=Local")
+	db, err := gorm.Open("mysql", c.MysqlURI+"?charset=utf8mb4&parseTime=True&loc=Local")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
@@ -408,6 +408,11 @@ func (f *Filesystem) doRefresh() error {
 		return fmt.Errorf("Failed to look up records from filesystem, found zero")
 	}
 
+	// Scrub any deleted records from the database to avoid ID collisions.
+	if err := f.db.Unscoped().Where("deleted_at IS NOT NULL").Delete(&VideoRecord{}).Error; err != nil {
+		return fmt.Errorf("failed to scrub deleted records: %v", err)
+	}
+
 	// Determine the set of identifiers present in the database.
 	dbm := make(map[string]bool)
 	var found []string
@@ -436,23 +441,7 @@ func (f *Filesystem) doRefresh() error {
 		return nil
 	}
 
-	var deleted []string
-	if err := f.db.Unscoped().Model(&VideoRecord{}).Where("deleted_at IS NOT NULL").Pluck("identifier", &deleted).Error; err != nil {
-		return fmt.Errorf("failed to look up list of deleted db identifiers: %v", err)
-	}
-	if len(deleted) == 0 {
-		return fmt.Errorf("Failed to look up deleted records from filesystem, found zero")
-	}
-	log.Infof("Found %d deleted records in database", len(deleted))
-	delm := make(map[string]*VideoRecord)
-	for _, k := range deleted {
-		if vr, ok := fsm[k]; ok {
-			delete(fsm, k)
-			delm[k] = vr
-		}
-	}
-
-	log.Infof("%d records missing in database, %d records extra in database. %d deleted records in filesystem. Starting sync.", len(fsm), len(dbm), len(delm))
+	log.Infof("%d records missing in database, %d records extra in database. Starting sync.", len(fsm), len(dbm))
 	start := time.Now()
 	defer func() {
 		et := time.Since(start)
@@ -469,16 +458,18 @@ func (f *Filesystem) doRefresh() error {
 		ne <- true
 	}()
 
-	// Delete extra records.
-	for id := range dbm {
-		vr := f.GetRecordByID(id)
-		vr.Delete()
-	}
+	// TODO restore this. It's buggy right now and causing problems!
 
-	// Remove deleted records from filesystem
-	for _, vr := range delm {
-		vr.Delete()
-	}
+	// Delete extra records.
+	//    for id := range dbm {
+	//    	vr := f.GetRecordByID(id)
+	//    	vr.Delete()
+	//    }
+
+	//    // Remove deleted records from filesystem
+	//    for _, vr := range delm {
+	//      vr.Delete()
+	//    }
 
 	// Insert missing records.
 	for _, vr := range fsm {
@@ -588,7 +579,8 @@ func (r *VideoRecord) Delete() {
 	if r.HaveVThumb {
 		remove(paths.VThumbPath)
 	}
-	r.fs.db.Delete(r)
+	// Hard delete from database.
+	r.fs.db.Unscoped().Delete(r)
 	log.Infof("Deleted event %v (id=%v)", r.Identifier, r.ID)
 
 	r.fs.notifyListeners()
@@ -601,12 +593,12 @@ type RecordsFilter struct {
 // GetRecords provides the current filesystem. Output be sorted by most recent first.
 func (f *Filesystem) GetRecords(filter *RecordsFilter) []*VideoRecord {
 	var records []*VideoRecord
-	q := f.db.Order("triggered_at DESC")
+	q := f.db.Debug().Order("triggered_at DESC")
 	if filter.HaveClassification {
 		q = q.Where("have_classification = true")
 	}
 	if err := q.Find(&records).Error; err != nil {
-		log.Errorf("Record lookup failed: %v", err)
+		log.Fatalf("Record lookup failed: %v", err)
 		return []*VideoRecord{}
 	}
 	for _, r := range records {
