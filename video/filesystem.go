@@ -311,22 +311,22 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 		options: opts,
 	}
 	go func() {
-		log.Infof("Starting initial filesystem refresh (%v). This could take a while.", opts.BasePath)
-		// Initial filesystem scan.
-		if err := f.doRefresh(); err != nil {
-			log.Errorf("Initial filesystem refresh failed: %v", err)
-		}
-		log.Infof("Initial filesystem scan completed")
-		rt := time.NewTicker(FilesystemRefreshInterval)
+		//  log.Infof("Starting initial filesystem refresh (%v). This could take a while.", opts.BasePath)
+		//  // Initial filesystem scan.
+		//  if err := f.doRefresh(); err != nil {
+		//  	log.Errorf("Initial filesystem refresh failed: %v", err)
+		//  }
+		// log.Infof("Initial filesystem scan completed")
+		// rt := time.NewTicker(FilesystemRefreshInterval)
 		gt := time.NewTicker(GarbageCollectionInterval)
 		for {
 			select {
 			case <-gt.C:
 				f.doGarbageCollect()
-			case <-rt.C:
-				if err := f.doRefresh(); err != nil {
-					log.Errorf("Periodic filesystem refresh failed: %v", err)
-				}
+			// case <-rt.C:
+			// 	if err := f.doRefresh(); err != nil {
+			// 		log.Errorf("Periodic filesystem refresh failed: %v", err)
+			// 	}
 			}
 		}
 	}()
