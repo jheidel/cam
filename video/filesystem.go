@@ -6,16 +6,13 @@ import (
 	"cam/video/process"
 	"encoding/gob"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	"github.com/pillash/mp4util"
 	log "github.com/sirupsen/logrus"
 )
@@ -31,15 +28,9 @@ const (
 	// FileTimeLayout defines the format of filenames.
 	// See https://golang.org/src/time/format.go.
 	FileTimeLayout = "20060102-150405Z0700"
-
-	// LegacyDatabaseFile is the path to the sqlite3 database.
-	LegacyDatabaseFile = "cam.db"
 )
 
 var (
-	// FilesystemRefreshInterval controls the frequency of periodic disk consistency
-	// scans.
-	FilesystemRefreshInterval = 10 * time.Minute
 	// GarbageCollectionInterval controls the frequency of garbage collection.
 	GarbageCollectionInterval = 30 * time.Minute
 )
@@ -189,11 +180,10 @@ func (r *VideoRecord) UpdateVThumb() {
 }
 
 type FilesystemOptions struct {
-	// URI for connecting to the database. If empty, will fall back to legacy sqlite.
+	// URI for connecting to the database.
 	DatabaseURI string
 
-	// Root directory for the filesystem. All videos will be stored here, along
-	// with the legacy sqlite database file (if mysql not configured).
+	// Root directory for the filesystem. All videos will be stored here.
 	BasePath string
 
 	// MaxSize defines the total size threshold for garbage collection of old
@@ -216,24 +206,10 @@ type Filesystem struct {
 }
 
 type dbConnector struct {
-	SqlitePath string
-	MysqlURI   string
+	MysqlURI string
 }
 
-func (c *dbConnector) connectSqlite(create bool) (*gorm.DB, error) {
-	if _, err := os.Stat(c.SqlitePath); os.IsNotExist(err) && !create {
-		return nil, nil // No legacy database present.
-	}
-	db, err := gorm.Open("sqlite3", c.SqlitePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open legacy database: %v", err)
-	}
-	db.AutoMigrate(&VideoRecord{})
-	log.Infof("Connected to sqlite3 database")
-	return db, nil
-}
-
-func (c *dbConnector) connectMysql() (*gorm.DB, error) {
+func (c *dbConnector) Connect() (*gorm.DB, error) {
 	if c.MysqlURI == "" {
 		return nil, nil
 	}
@@ -246,61 +222,12 @@ func (c *dbConnector) connectMysql() (*gorm.DB, error) {
 	return db, nil
 }
 
-func (c *dbConnector) migrate(past, future *gorm.DB) error {
-	log.Infof("Migrating legacy sqlite database to mysql")
-	var records []VideoRecord
-	if err := past.Find(&records).Error; err != nil {
-		return fmt.Errorf("%v reading from past", err)
-	}
-	log.Infof("Loaded %d records from past", len(records))
-	for _, rec := range records {
-		if err := future.Create(&rec).Error; err != nil {
-			return fmt.Errorf("%v writing to future", err)
-		}
-	}
-	if err := past.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(c.SqlitePath, c.SqlitePath+".migrated"); err != nil {
-		return fmt.Errorf("%v moving legacy database", err)
-	}
-	return nil
-}
-
-// Connect creates a database connection.
-// If mysql is available, use that directly.
-// If an existing sqlite database exists, migrate it.
-// Otherwise, fallback to a sqlite database.
-func (c *dbConnector) Connect() (*gorm.DB, error) {
-	sqlite, err := c.connectSqlite(false)
-	if err != nil {
-		return nil, err
-	}
-	mysql, err := c.connectMysql()
-	if err != nil {
-		return nil, err
-	}
-	if sqlite != nil && mysql != nil {
-		if err := c.migrate(sqlite, mysql); err != nil {
-			return nil, fmt.Errorf("failed migration: %v", err)
-		}
-	}
-	if mysql != nil {
-		return mysql, nil
-	}
-	if sqlite != nil {
-		return sqlite, nil
-	}
-	return c.connectSqlite(true)
-}
-
 func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 	if err := os.MkdirAll(opts.BasePath, 0755); err != nil {
 		return nil, err
 	}
 	connector := &dbConnector{
-		SqlitePath: filepath.Join(opts.BasePath, LegacyDatabaseFile),
-		MysqlURI:   opts.DatabaseURI,
+		MysqlURI: opts.DatabaseURI,
 	}
 	db, err := connector.Connect()
 	if err != nil {
@@ -311,22 +238,11 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 		options: opts,
 	}
 	go func() {
-		//  log.Infof("Starting initial filesystem refresh (%v). This could take a while.", opts.BasePath)
-		//  // Initial filesystem scan.
-		//  if err := f.doRefresh(); err != nil {
-		//  	log.Errorf("Initial filesystem refresh failed: %v", err)
-		//  }
-		// log.Infof("Initial filesystem scan completed")
-		// rt := time.NewTicker(FilesystemRefreshInterval)
 		gt := time.NewTicker(GarbageCollectionInterval)
 		for {
 			select {
 			case <-gt.C:
 				f.doGarbageCollect()
-			// case <-rt.C:
-			// 	if err := f.doRefresh(); err != nil {
-			// 		log.Errorf("Periodic filesystem refresh failed: %v", err)
-			// 	}
 			}
 		}
 	}()
@@ -342,150 +258,6 @@ func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 	}
 	f.db.Create(vr)
 	return vr
-}
-
-func (f *Filesystem) scanFilesystem() (map[string]*VideoRecord, error) {
-	start := time.Now()
-	defer func() {
-		et := time.Since(start)
-		if et < time.Second {
-			log.Debugf("Filesystem scan completed in %v", et)
-		} else {
-			log.Infof("Filesystem scan (slow) completed in %v", et)
-		}
-	}()
-
-	m := make(map[string]*VideoRecord)
-
-	files, err := ioutil.ReadDir(f.options.BasePath)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, file := range files {
-		b := file.Name()
-		if len(b) < len(FileTimeLayout) {
-			continue
-		}
-		id := b[:len(FileTimeLayout)]
-		t, err := time.Parse(FileTimeLayout, id)
-		if err != nil {
-			continue
-		}
-
-		v := m[id]
-		if v == nil {
-			v = &VideoRecord{
-				TriggeredAt: t,
-				Identifier:  id,
-				fs:          f,
-			}
-			m[id] = v
-		}
-
-		switch {
-		case strings.HasSuffix(b, ExtVideo):
-			v.HaveVideo = true
-		case strings.HasSuffix(b, ExtThumb):
-			v.HaveThumb = true
-		case strings.HasSuffix(b, ExtVThumb):
-			v.HaveVThumb = true
-		default:
-			continue
-		}
-	}
-
-	return m, nil
-}
-
-func (f *Filesystem) doRefresh() error {
-	fsm, err := f.scanFilesystem()
-	if err != nil {
-		return err
-	}
-	log.Infof("Found %d records in filesystem", len(fsm))
-	if len(fsm) == 0 {
-		return fmt.Errorf("Failed to look up records from filesystem, found zero")
-	}
-
-	// Scrub any deleted records from the database to avoid ID collisions.
-	if err := f.db.Unscoped().Where("deleted_at IS NOT NULL").Delete(&VideoRecord{}).Error; err != nil {
-		return fmt.Errorf("failed to scrub deleted records: %v", err)
-	}
-
-	// Determine the set of identifiers present in the database.
-	dbm := make(map[string]bool)
-	var found []string
-	if err := f.db.Model(&VideoRecord{}).Pluck("identifier", &found).Error; err != nil {
-		return fmt.Errorf("failed to look up list of db identifiers: %v", err)
-	}
-	for _, id := range found {
-		dbm[id] = true
-	}
-	log.Infof("Found %d records in database", len(dbm))
-	if len(dbm) == 0 {
-		return fmt.Errorf("Failed to look up records from db, found zero")
-	}
-
-	// `dbm` becomes the records that are not present on the filesystem.
-	for k := range fsm {
-		delete(dbm, k)
-	}
-	// `fsm` becomes the records missing in the database.
-	for _, k := range found {
-		delete(fsm, k)
-	}
-
-	if len(dbm) == 0 && len(fsm) == 0 {
-		// Everything in sync.
-		return nil
-	}
-
-	log.Infof("%d records missing in database, %d records extra in database. Starting sync.", len(fsm), len(dbm))
-	start := time.Now()
-	defer func() {
-		et := time.Since(start)
-		if et < time.Second {
-			log.Debugf("Filesystem sync completed in %v", et)
-		} else {
-			log.Infof("Filesystem sync (slow) completed in %v", et)
-		}
-	}()
-
-	// Suppress filesystem listeners while the update happens and notify all at once at the end.
-	ne := f.notifyListenersInBatch()
-	defer func() {
-		ne <- true
-	}()
-
-	// TODO restore this. It's buggy right now and causing problems!
-
-	// Delete extra records.
-	//    for id := range dbm {
-	//    	vr := f.GetRecordByID(id)
-	//    	vr.Delete()
-	//    }
-
-	//    // Remove deleted records from filesystem
-	//    for _, vr := range delm {
-	//      vr.Delete()
-	//    }
-
-	// Insert missing records.
-	for _, vr := range fsm {
-		f.db.Create(vr)
-		if vr.HaveThumb {
-			vr.UpdateThumb()
-		}
-		if vr.HaveVThumb {
-			vr.UpdateVThumb()
-		}
-		if vr.HaveVideo {
-			vr.UpdateVideo(nil)
-		}
-	}
-
-	return nil
 }
 
 func (f *Filesystem) notifyListenersInBatch() chan<- bool {

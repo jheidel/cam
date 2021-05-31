@@ -32,7 +32,7 @@ var (
 	certPath   = flag.String("cert", "/home/jeff/devkeys/fullchain.pem", "Path to cert.pem file")
 	keyPath    = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
 	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
-	database   = flag.String("database", os.Getenv("DATABASE"), "Mysql database path. If empty, use sqlite file under root instead")
+	database   = flag.String("database", os.Getenv("DATABASE"), "Mysql database path. Required.")
 )
 
 func topLevelContext() context.Context {
