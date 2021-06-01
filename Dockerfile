@@ -24,27 +24,13 @@ RUN make
 ####
 # Build the go binary
 ####
-FROM ubuntu:latest AS cam-builder-go
-RUN apt update && apt install -y golang git build-essential sudo
-
-# Manually install gocv
-ADD https://api.github.com/repos/jheidel/gocv/git/refs/heads/dev /tmp/version.json
-RUN mkdir -p /root/go/src/gocv.io/x/
-RUN git clone --branch dev https://github.com/jheidel/gocv.git /root/go/src/gocv.io/x/gocv
-WORKDIR /root/go/src/gocv.io/x/gocv/
-RUN make deps
-RUN make download
-RUN make build
-RUN make sudo_install
-RUN go run ./cmd/version/main.go
+FROM gocv/opencv:4.5.2 AS cam-builder-go
 
 WORKDIR /root/go/src/cam/
 
 # Install go-bindata executable
-# TODO(jheidel): This tool is deprecated and it would be a good idea to switch
-# onto a maintained go asset package.
-RUN apt install -y go-bindata
-RUN go get -u github.com/jteeuwen/go-bindata/...
+RUN go get github.com/go-bindata/go-bindata/...
+RUN go get github.com/elazarl/go-bindata-assetfs/...
 
 # Copy all source files.
 COPY . .
@@ -59,8 +45,7 @@ RUN make libs
 # Compose everything into the final minimal image.
 ####
 
-#FROM alpine
-FROM ubuntu:latest
+FROM debian:buster-slim
 WORKDIR /app
 
 # Install dependencies

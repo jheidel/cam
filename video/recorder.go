@@ -50,7 +50,6 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 	go func() {
 		recording := false
 		var out *VideoSink
-		var detection process.Detections
 		var stop <-chan time.Time
 		var stopLong <-chan time.Time
 
@@ -58,7 +57,6 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 			if !recording {
 				panic("expected to be in state recording")
 			}
-			out.SetDetections(detection)
 			go out.Close()
 			for _, l := range r.Listeners {
 				l.StopRecording(out.Record)
@@ -80,7 +78,6 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 			case <-r.trigger:
 				if !recording {
 					out = r.producer.New(r.buf.GetLast())
-					detection = make(process.Detections)
 					r.buf.FlushToSink(out)
 					recording = true
 					stopLong = time.NewTimer(r.opts.MaxRecordTime).C
@@ -91,8 +88,8 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 				stop = time.NewTimer(r.opts.RecordTime).C
 
 			case d := <-r.detection:
-				if detection != nil {
-					detection.Merge(d)
+				if recording {
+					out.AddDetections(d)
 				}
 
 			case <-stop:

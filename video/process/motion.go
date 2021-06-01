@@ -61,7 +61,7 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 
 	// TODO support live reload of mask
 	bounds := config.Get().MotionBounds
-	gocv.FillPoly(&mask, [][]image.Point{bounds}, color.RGBA{255, 255, 255, 255})
+	gocv.FillPoly(&mask, gocv.NewPointsVectorFromPoints([][]image.Point{bounds}), color.RGBA{255, 255, 255, 255})
 
 	// TODO fill the mask.
 
@@ -78,7 +78,7 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 
 		// history=500, threshold=16
 		// TODO: make history based on analysis FPS.
-		d: gocv.NewBackgroundSubtractorMOG2(60, config.Get().MotionThresh),
+		d: gocv.NewBackgroundSubtractorMOG2WithParams(60, config.Get().MotionThresh, false),
 
 		blend:   gocv.NewMat(),
 		blendin: gocv.NewMat(),
@@ -89,7 +89,7 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 		m3:      gocv.NewMat(),
 
 		mask: mask,
-		crop: gocv.BoundingRect(bounds),
+		crop: gocv.BoundingRect(gocv.NewPointVectorFromPoints(bounds)),
 
 		// TODO allow reconfiguring structring element.
 		sts: gocv.GetStructuringElement(gocv.MorphCross, image.Point{
@@ -179,14 +179,16 @@ func (m *Motion) loop() {
 		debug.Put("dilate", m.m3)
 
 		contours := gocv.FindContours(m.m3, gocv.RetrievalList, gocv.ChainApproxSimple)
-		for _, contour := range contours {
+		for i := 0; i < contours.Size(); i++ {
+			contour := contours.At(i)
 			bounds := gocv.BoundingRect(contour)
 			gocv.Rectangle(&m.draw, bounds.Add(m.crop.Min), color.RGBA{255, 0, 0, 255}, 2)
 		}
 
-		if motionEnabled.HasBeenNotified() && len(contours) > 0 {
+		sz := contours.Size()
+		if motionEnabled.HasBeenNotified() && sz > 0 {
 			// TODO make this a metrics stream.
-			log.Debugf("Detected motion, %d contours", len(contours))
+			log.Debugf("Detected motion, %d contours", sz)
 			for _, t := range m.Triggers {
 				t.MotionDetected()
 			}

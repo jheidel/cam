@@ -19,7 +19,7 @@ type VideoSink struct {
 
 	Record *VideoRecord
 
-	detections []process.Detection
+	detections process.Detections
 	p          *VideoSinkProducer
 }
 
@@ -45,9 +45,10 @@ func (p *VideoSinkProducer) New(trigger source.Image) *VideoSink {
 	s = sink.NewFPSNormalize(s, p.FFmpegOptions.FPS)
 
 	return &VideoSink{
-		sink:   s,
-		Record: r,
-		p:      p,
+		sink:       s,
+		Record:     r,
+		detections: make(process.Detections),
+		p:          p,
 	}
 }
 
@@ -55,16 +56,20 @@ func (w *VideoSink) Put(i source.Image) {
 	w.sink.Put(i)
 }
 
-func (w *VideoSink) SetDetections(detection process.Detections) {
-	if len(detection) > 0 {
-		log.Infof("Final detections for video: %v", detection.DebugString())
+func (w *VideoSink) AddDetections(detections process.Detections) {
+	if detections == nil || len(detections) == 0 {
+		return
 	}
-	w.detections = detection.SortedDetections()
+	if len(w.detections) == 0 {
+		// First detection: make an update so it shows up in the UI.
+		w.Record.SetDetections(detections.SortedDetections())
+	}
+	w.detections.Merge(detections)
 }
 
 func (w *VideoSink) Close() {
 	w.sink.Close()
-	w.Record.UpdateVideo(w.detections)
+	w.Record.UpdateVideo(w.detections.SortedDetections())
 
 	// Create video thumbnail.
 	paths := w.Record.Paths()

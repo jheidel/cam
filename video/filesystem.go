@@ -122,6 +122,22 @@ func (r *VideoRecord) Paths() *VideoRecordPaths {
 	}
 }
 
+func (r *VideoRecord) SetDetections(detections []process.Detection) {
+	r.setDetections(detections)
+	r.fs.db.Save(r)
+	r.fs.notifyListeners()
+}
+
+func (r *VideoRecord) setDetections(detections []process.Detection) {
+	if len(detections) == 0 {
+		return
+	}
+	r.HaveClassification = true
+	r.Classification = &Classification{
+		Detections: detections,
+	}
+}
+
 func (r *VideoRecord) UpdateVideo(detections []process.Detection) {
 	p := r.Paths().VideoPath
 	fi, err := os.Stat(p)
@@ -139,12 +155,7 @@ func (r *VideoRecord) UpdateVideo(detections []process.Detection) {
 	r.HaveVideo = true
 	r.Size += fi.Size()
 	r.VideoDurationSec = ds
-	if len(detections) > 0 {
-		r.HaveClassification = true
-		r.Classification = &Classification{
-			Detections: detections,
-		}
-	}
+	r.setDetections(detections)
 	r.fs.db.Save(r)
 	r.fs.notifyListeners()
 }
