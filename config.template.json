@@ -14,5 +14,8 @@
       {"X": 200, "Y": 850}
   ],
   "MotionThresh": 48,
-  "MotionErode": 15
+  "MotionErode": 15,
+
+  "FullchainPath": "/etc/letsencrypt/live/site.com/fullchain.pem",
+  "PrivkeyPath": "/etc/letsencrypt/live/site.com/privkey.pem"
 }

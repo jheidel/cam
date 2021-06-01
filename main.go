@@ -29,8 +29,6 @@ import (
 var (
 	port       = flag.Int("port", 8443, "Port to host http web frontend.")
 	rootPath   = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
-	certPath   = flag.String("cert", "/home/jeff/devkeys/fullchain.pem", "Path to cert.pem file")
-	keyPath    = flag.String("key", "/home/jeff/devkeys/privkey.pem", "Path to key.pem file")
 	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
 	database   = flag.String("database", os.Getenv("DATABASE"), "Mysql database path. Required.")
 )
@@ -191,7 +189,7 @@ func main() {
 		push.RegisterHandlers(http.DefaultServeMux)
 
 		ps := fmt.Sprintf(":%d", *port)
-		err := http.ListenAndServeTLS(ps, *certPath, *keyPath, nil)
+		err := http.ListenAndServeTLS(ps, config.Get().FullchainPath, config.Get().PrivkeyPath, nil)
 		log.Infof("HTTP server exited with status %v", err)
 	}()
 

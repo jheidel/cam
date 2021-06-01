@@ -59,7 +59,7 @@ RUN mkdir -p /mnt/db
 # ...for configuration
 RUN mkdir -p /mnt/config
 # ...for HTTP certificates
-RUN mkdir -p /mnt/cert
+RUN mkdir -p /etc/letsencrypt
 
 # Use local timezone.
 # TODO: make image timezone-agnostic (currently used for quiet hours)
@@ -72,4 +72,4 @@ COPY --from=cam-builder-go /root/go/src/cam/libs /usr/local/lib
 RUN ldconfig
 
 EXPOSE 8443
-CMD ["./cam", "--port", "8443", "--root", "/mnt/db", "--config", "/mnt/config/config.json", "--cert", "/mnt/cert/fullchain.pem", "--key", "/mnt/cert/privkey.pem"]
+CMD ["./cam", "--port", "8443", "--root", "/mnt/db", "--config", "/mnt/config/config.json"]

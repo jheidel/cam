@@ -14,4 +14,7 @@ type Config struct {
 	MotionBounds []image.Point
 	MotionThresh float64
 	MotionErode  int
+
+	FullchainPath string
+	PrivkeyPath   string
 }
