@@ -49,7 +49,8 @@ FROM debian:buster-slim
 WORKDIR /app
 
 # Install dependencies
-RUN apt update && apt install -y ffmpeg tzdata
+RUN apt update && apt install -y ffmpeg tzdata ca-certificates
+RUN update-ca-certificates
 # Clean up apt garbage to keep the image small
 RUN apt clean autoclean && apt autoremove -y && rm -rf /var/lib/{apt,dpkg,cache,log}/
 
