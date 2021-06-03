@@ -91,6 +91,8 @@ type VideoRecord struct {
 }
 
 func (r *VideoRecord) AfterFind(tx *gorm.DB) error {
+	r.l.Lock()
+	defer r.l.Unlock()
 	// Handle legacy database format for classifications.
 	// TODO: remove after old data expires from the system.
 	if len(r.ClassificationBytes) == 0 {
@@ -117,6 +119,8 @@ type VideoRecordPaths struct {
 
 // Paths provides locations for where new files should be created.
 func (r *VideoRecord) Paths() *VideoRecordPaths {
+	r.l.Lock()
+	defer r.l.Unlock()
 	return &VideoRecordPaths{
 		VideoPath:  filepath.Join(r.fs.options.BasePath, r.Identifier+ExtVideo),
 		ThumbPath:  filepath.Join(r.fs.options.BasePath, r.Identifier+ExtThumb),
@@ -125,6 +129,8 @@ func (r *VideoRecord) Paths() *VideoRecordPaths {
 }
 
 func (r *VideoRecord) SetDetections(detections []process.Detection) {
+	r.l.Lock()
+	defer r.l.Unlock()
 	r.setDetections(detections)
 	if err := r.fs.db.Debug().Save(r).Error; err != nil {
 		log.Fatalf("SetDetections.Save %v for %v", err, spew.Sdump(r))
@@ -197,6 +203,38 @@ func (r *VideoRecord) UpdateVThumb() {
 	if err = r.fs.db.Debug().Save(r).Error; err != nil {
 		log.Fatalf("UpdateVThumb.Save %v for %v", err, spew.Sdump(r))
 	}
+	r.fs.notifyListeners()
+}
+
+func (r *VideoRecord) Delete() {
+	r.l.Lock()
+	defer r.l.Unlock()
+
+	remove := func(p string) {
+		if p == "" {
+			return
+		}
+		if err := os.Remove(p); err != nil {
+			log.Errorf("Garbage collection failed for %v: %v", p, err)
+		}
+	}
+	paths := r.Paths()
+	if r.HaveVideo {
+		remove(paths.VideoPath)
+	}
+	if r.HaveThumb {
+		remove(paths.ThumbPath)
+	}
+	if r.HaveVThumb {
+		remove(paths.VThumbPath)
+	}
+	// Hard delete from database.
+	// TODO soft delete is probably fine
+	if err := r.fs.db.Unscoped().Delete(r).Error; err != nil {
+		log.Fatalf("Delete %v for %v", err, spew.Sdump(r))
+	}
+	log.Infof("Deleted event %v (id=%v)", r.Identifier, r.ID)
+
 	r.fs.notifyListeners()
 }
 
@@ -355,35 +393,6 @@ func (f *Filesystem) doGarbageCollect() {
 		r.Delete()
 	}
 	log.Infof("Garbage collection removed %d records in %v", len(toDelete), time.Since(gcStart))
-}
-
-func (r *VideoRecord) Delete() {
-	remove := func(p string) {
-		if p == "" {
-			return
-		}
-		if err := os.Remove(p); err != nil {
-			log.Errorf("Garbage collection failed for %v: %v", p, err)
-		}
-	}
-	paths := r.Paths()
-	if r.HaveVideo {
-		remove(paths.VideoPath)
-	}
-	if r.HaveThumb {
-		remove(paths.ThumbPath)
-	}
-	if r.HaveVThumb {
-		remove(paths.VThumbPath)
-	}
-	// Hard delete from database.
-	// TODO soft delete is probably fine
-	if err := r.fs.db.Unscoped().Delete(r).Error; err != nil {
-		log.Fatalf("Delete %v for %v", err, spew.Sdump(r))
-	}
-	log.Infof("Deleted event %v (id=%v)", r.Identifier, r.ID)
-
-	r.fs.notifyListeners()
 }
 
 type RecordsFilter struct {
