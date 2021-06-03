@@ -5,12 +5,14 @@ import (
 	"bytes"
 	"cam/video/process"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/pillash/mp4util"
@@ -124,7 +126,9 @@ func (r *VideoRecord) Paths() *VideoRecordPaths {
 
 func (r *VideoRecord) SetDetections(detections []process.Detection) {
 	r.setDetections(detections)
-	r.fs.db.Save(r)
+	if err := r.fs.db.Debug().Save(r).Error; err != nil {
+		log.Fatalf("SetDetections.Save %v for %v", err, spew.Sdump(r))
+	}
 	r.fs.notifyListeners()
 }
 
@@ -156,7 +160,9 @@ func (r *VideoRecord) UpdateVideo(detections []process.Detection) {
 	r.Size += fi.Size()
 	r.VideoDurationSec = ds
 	r.setDetections(detections)
-	r.fs.db.Save(r)
+	if err = r.fs.db.Debug().Save(r).Error; err != nil {
+		log.Fatalf("UpdateVideo.Save %v for %v", err, spew.Sdump(r))
+	}
 	r.fs.notifyListeners()
 }
 
@@ -171,7 +177,9 @@ func (r *VideoRecord) UpdateThumb() {
 	defer r.l.Unlock()
 	r.HaveThumb = true
 	r.Size += fi.Size()
-	r.fs.db.Save(r)
+	if err = r.fs.db.Debug().Save(r).Error; err != nil {
+		log.Fatalf("UpdateThumb.Save %v for %v", err, spew.Sdump(r))
+	}
 	r.fs.notifyListeners()
 }
 
@@ -186,7 +194,9 @@ func (r *VideoRecord) UpdateVThumb() {
 	defer r.l.Unlock()
 	r.HaveVThumb = true
 	r.Size += fi.Size()
-	r.fs.db.Save(r)
+	if err = r.fs.db.Debug().Save(r).Error; err != nil {
+		log.Fatalf("UpdateVThumb.Save %v for %v", err, spew.Sdump(r))
+	}
 	r.fs.notifyListeners()
 }
 
@@ -363,7 +373,9 @@ func (r *VideoRecord) Delete() {
 		remove(paths.VThumbPath)
 	}
 	// Hard delete from database.
-	r.fs.db.Unscoped().Delete(r)
+	if err := r.fs.db.Unscoped().Delete(r).Error; err != nil {
+		log.Fatalf("Delete %v for %v", err, spew.Sdump(r))
+	}
 	log.Infof("Deleted event %v (id=%v)", r.Identifier, r.ID)
 
 	r.fs.notifyListeners()
@@ -381,7 +393,7 @@ func (f *Filesystem) GetRecords(filter *RecordsFilter) []*VideoRecord {
 		q = q.Where("have_classification = true")
 	}
 	if err := q.Find(&records).Error; err != nil {
-		log.Fatalf("Record lookup failed: %v", err)
+		log.Fatalf("Record lookup failed: %v for filter %v", err, spew.Sdump(filter))
 		return []*VideoRecord{}
 	}
 	for _, r := range records {
@@ -392,8 +404,11 @@ func (f *Filesystem) GetRecords(filter *RecordsFilter) []*VideoRecord {
 
 func (f *Filesystem) GetRecordByID(ID string) *VideoRecord {
 	record := &VideoRecord{}
-	if f.db.Where("identifier = ?", ID).First(record).RecordNotFound() {
-		return nil
+	if err := f.db.Where("identifier = ?", ID).First(record).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		log.Fatalf("GetRecordById %v over ID %v", err, ID)
 	}
 	record.fs = f
 	return record
