@@ -3,6 +3,7 @@ package notify
 import (
 	"cam/video/process"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,9 +13,10 @@ import (
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const DatabaseFile = "webpush.db"
@@ -47,7 +49,11 @@ type PushConfig struct {
 
 func NewWebPush(root string) (*WebPush, error) {
 	path := filepath.Join(root, DatabaseFile)
-	db, err := gorm.Open("sqlite3", path)
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+		// TODO customize logger to integrate with logrus instead of dumping to
+		// stdout using a different format
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
@@ -58,7 +64,7 @@ func NewWebPush(root string) (*WebPush, error) {
 		db:  db,
 	}
 	// Load VAPID key from database, otherwise create.
-	if db.First(p.Key).RecordNotFound() {
+	if err := db.First(p.Key).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		priv, pub, err := webpush.GenerateVAPIDKeys()
 		if err != nil {
 			return nil, err
@@ -128,7 +134,7 @@ func (p *WebPush) handleUnsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pc := &PushConfig{}
-	if p.db.Where("subscription_id = ?", sub.Endpoint).First(pc).RecordNotFound() {
+	if err := p.db.Where("subscription_id = ?", sub.Endpoint).First(pc).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		http.Error(w, "subscription not found", http.StatusNotFound)
 		return
 	}

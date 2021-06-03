@@ -1,10 +1,11 @@
 package video
 
 import (
-	"bufio"
 	"bytes"
 	"cam/video/process"
+	"database/sql/driver"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,10 +14,11 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/pillash/mp4util"
 	log "github.com/sirupsen/logrus"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const (
@@ -45,6 +47,21 @@ type Classification struct {
 	Detections []process.Detection
 }
 
+func (c *Classification) Scan(value interface{}) error {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New(fmt.Sprint("Failed to unmarshal Classification JSON value:", value))
+	}
+	return json.Unmarshal(bytes, c)
+}
+
+func (c *Classification) Value() (driver.Value, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return json.Marshal(c)
+}
+
 type VideoRecord struct {
 	gorm.Model
 
@@ -61,8 +78,11 @@ type VideoRecord struct {
 	// Combined size of this record on disk.
 	Size int64
 
-	HaveClassification  bool
-	Classification      *Classification
+	HaveClassification bool
+	Classification     *Classification
+
+	// DEPRECATED
+	// TODO: remove once old data expires from database
 	ClassificationBytes []byte
 
 	// Reference to parent.
@@ -70,30 +90,9 @@ type VideoRecord struct {
 	l  sync.Mutex
 }
 
-func (r *VideoRecord) BeforeCreate() error {
-	return r.BeforeSave()
-}
-func (r *VideoRecord) BeforeUpdate() error {
-	return r.BeforeSave()
-}
-func (r *VideoRecord) BeforeSave() error {
-	if r.Classification == nil {
-		return nil
-	}
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	e := gob.NewEncoder(w)
-	if err := e.Encode(r.Classification); err != nil {
-		return err
-	}
-	if err := w.Flush(); err != nil {
-		return err
-	}
-	r.ClassificationBytes = b.Bytes()
-	return nil
-}
-
-func (r *VideoRecord) AfterFind() error {
+func (r *VideoRecord) AfterFind(tx *gorm.DB) error {
+	// Handle legacy database format for classifications.
+	// TODO: remove after old data expires from the system.
 	if len(r.ClassificationBytes) == 0 {
 		return nil
 	}
@@ -105,6 +104,7 @@ func (r *VideoRecord) AfterFind() error {
 		return err
 	}
 	r.Classification = c
+	r.ClassificationBytes = nil
 	return nil
 }
 
@@ -234,7 +234,11 @@ func (c *dbConnector) Connect() (*gorm.DB, error) {
 	if c.MysqlURI == "" {
 		return nil, nil
 	}
-	db, err := gorm.Open("mysql", c.MysqlURI+"?charset=utf8mb4&parseTime=True&loc=Local")
+	db, err := gorm.Open(mysql.Open(c.MysqlURI+"?charset=utf8mb4&parseTime=True&loc=Local"), &gorm.Config{
+		// TODO customize logger to integrate with logrus instead of dumping to
+		// stdout using a different format
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
@@ -373,6 +377,7 @@ func (r *VideoRecord) Delete() {
 		remove(paths.VThumbPath)
 	}
 	// Hard delete from database.
+	// TODO soft delete is probably fine
 	if err := r.fs.db.Unscoped().Delete(r).Error; err != nil {
 		log.Fatalf("Delete %v for %v", err, spew.Sdump(r))
 	}

@@ -9,8 +9,10 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.4.2
-	github.com/jinzhu/gorm v1.9.16
 	github.com/pillash/mp4util v0.0.0-20150601005705-98601ecf290a
 	github.com/sirupsen/logrus v1.8.1
 	gocv.io/x/gocv v0.27.0
+	gorm.io/driver/mysql v1.1.0
+	gorm.io/driver/sqlite v1.1.4
+	gorm.io/gorm v1.21.10
 )
