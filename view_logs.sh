@@ -1,3 +1,3 @@
 #!/bin/bash
 
-journalctl -f -u cam.service
+docker logs -f cam
