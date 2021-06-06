@@ -46,7 +46,7 @@ type Motion struct {
 	// Channel for double buffering.
 	a chan gocv.Mat
 
-	d gocv.BackgroundSubtractorMOG2
+	subtractor gocv.BackgroundSubtractorMOG2
 
 	blend, blendin, draw, m0, m1, m2, m3, st1, sts, stl, mask gocv.Mat
 
@@ -78,7 +78,7 @@ func NewMotion(ms *sink.MJPEGServer, classifier *Classifier, sz image.Point) *Mo
 
 		// history=500, threshold=16
 		// TODO: make history based on analysis FPS.
-		d: gocv.NewBackgroundSubtractorMOG2WithParams(60, config.Get().MotionThresh, false),
+		subtractor: gocv.NewBackgroundSubtractorMOG2WithParams(60, config.Get().MotionThresh, false),
 
 		blend:   gocv.NewMat(),
 		blendin: gocv.NewMat(),
@@ -162,7 +162,9 @@ func (m *Motion) loop() {
 		//debug.Put("blurred", m.m1)
 
 		//m.d.Apply(m.m1, m.m2)
-		m.d.Apply(inputcrop, &m.m2)
+		m.subtractor.Apply(inputcrop, &m.m2)
+		inputcrop.Close()
+
 		debug.Put("motion", m.m2)
 
 		// was 128

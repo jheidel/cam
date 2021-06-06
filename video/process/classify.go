@@ -104,6 +104,11 @@ func (d Detections) DebugString() string {
 
 func (cl *Classifier) ImageColorValue(input gocv.Mat) float32 {
 	channels := gocv.Split(input)
+	defer func() {
+		for _, v := range channels {
+			v.Close()
+		}
+	}()
 	gocv.AbsDiff(channels[1], channels[2], &cl.diff)
 	gocv.Blur(cl.diff, &cl.diffBlur, image.Point{X: 10, Y: 10})
 	_, maxDiff, _, _ := gocv.MinMaxIdx(cl.diffBlur)

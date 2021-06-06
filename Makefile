@@ -14,7 +14,7 @@ debugfs: web/build
 go:
 	go mod download
 	go get -d -v  # Attempt to upgrade
-	go build -ldflags "-X main.BuildTimestamp=$(ts)"
+	go build -tags matprofile -ldflags "-X main.BuildTimestamp=$(ts)"
 
 .PHONY: debug build
 

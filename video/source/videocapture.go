@@ -33,11 +33,8 @@ type VideoCapture struct {
 	cap       *gocv.VideoCapture
 	sz        image.Point
 	lastFetch time.Time
-
-	pool *MatPool
 }
 
-// TODO: this probably doesn't need to use MatPool. Just double-buffer?
 // TODO better FPS logic.
 
 // NewVideoCapture opens a capture source from the provided URI. It supports
@@ -48,7 +45,6 @@ func NewVideoCapture(uri string, fps int) *VideoCapture {
 		URI:   uri,
 		FPS:   fps,
 		close: make(chan chan bool, 1),
-		pool:  NewMatPool(),
 		init:  util.NewEvent(),
 	}
 }
@@ -85,22 +81,16 @@ func (v *VideoCapture) Get() <-chan Image {
 
 		// TODO clean up this somewhat horrifying state machine.
 
-		m := v.pool.NewMat()
 		for {
 			start := time.Now()
 			d := time.Second / time.Duration(v.FPS)
 
 			if v.Connected() {
-				i := Image{
-					Mat:  m,
-					Time: time.Now(),
-					pool: v.pool,
-				}
+				i := NewImage()
 				if ok := v.cap.Read(&i.Mat); ok {
 					c <- i
 
 					v.lastFetch = i.Time
-					m = v.pool.NewMat()
 				} else {
 					// TODO remove
 					log.Warning("Failed read from capture source")
@@ -135,7 +125,6 @@ func (v *VideoCapture) Get() <-chan Image {
 				if v.cap != nil {
 					v.cap.Close()
 				}
-				v.pool.ReleaseMat(m)
 				c <- true
 				return
 			}

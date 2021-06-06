@@ -12,7 +12,6 @@ type Buffer struct {
 
 	// buffer contains image history, oldest first.
 	buffer []source.Image
-	pool   *source.MatPool
 
 	input    chan source.Image
 	close    chan chan bool
@@ -24,7 +23,6 @@ type Buffer struct {
 func NewBuffer(maxAge time.Duration) *Buffer {
 	b := &Buffer{
 		MaxAge: maxAge,
-		pool:   source.NewMatPool(),
 
 		input:    make(chan source.Image),
 		close:    make(chan chan bool),
@@ -41,7 +39,7 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 				// Clear out old images from head.
 				for i, img := range b.buffer {
 					if in.Time.Sub(img.Time) >= b.MaxAge {
-						b.pool.ReleaseMat(img.Mat)
+						img.Close()
 					} else {
 						b.buffer = b.buffer[i:]
 						break
@@ -54,7 +52,7 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 				b.flushack <- true
 			case c := <-b.close:
 				for _, img := range b.buffer {
-					b.pool.ReleaseMat(img.Mat)
+					img.Close()
 				}
 				c <- true
 				return
@@ -68,7 +66,7 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 }
 
 func (b *Buffer) Put(input source.Image) {
-	b.input <- input.CloneToPool(b.pool)
+	b.input <- input.Clone()
 }
 
 // GetLast returns a copy of the image. The caller must release it.

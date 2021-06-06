@@ -324,7 +324,9 @@ func (f *Filesystem) NewRecord(t time.Time) *VideoRecord {
 		Identifier:  id,
 		fs:          f,
 	}
-	f.db.Create(vr)
+	if err := f.db.Debug().Create(vr).Error; err != nil {
+		log.Fatalf("Failed to create new record: %v", err)
+	}
 	return vr
 }
 

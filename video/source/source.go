@@ -9,29 +9,33 @@ import (
 // Image is
 // TODO
 type Image struct {
-	Mat  gocv.Mat
-	Time time.Time
-
-	// pool is the MatPool that created this image. It can be used in order to allocate new Mats.
-	pool *MatPool
+	Mat    gocv.Mat
+	Time   time.Time
+	closed bool
 }
 
-func (i *Image) Release() {
-	i.pool.ReleaseMat(i.Mat)
+func (i *Image) Close() {
+	if i.closed {
+		panic("image already closed")
+	}
+	i.closed = true
+	i.Mat.Close()
 }
 
-func (i *Image) CloneToPool(pool *MatPool) Image {
+func (i *Image) Clone() Image {
 	n := Image{
-		Mat:  pool.NewMat(),
+		Mat:  gocv.NewMat(),
 		Time: i.Time,
-		pool: pool,
 	}
 	i.Mat.CopyTo(&n.Mat)
 	return n
 }
 
-func (i *Image) Clone() Image {
-	return i.CloneToPool(i.pool)
+func NewImage() Image {
+	return Image{
+		Mat:  gocv.NewMat(),
+		Time: time.Now(),
+	}
 }
 
 // TODO something that signifies whether the source is offline.

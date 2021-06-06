@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
+	"gocv.io/x/gocv"
 )
 
 var (
@@ -186,6 +188,12 @@ func main() {
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))
+		// Useful for debugging opencv memory leaks.
+		http.HandleFunc("/matprofile", func(w http.ResponseWriter, r *http.Request) {
+			var b bytes.Buffer
+			gocv.MatProfile.WriteTo(&b, 1)
+			fmt.Fprintf(w, b.String())
+		})
 		push.RegisterHandlers(http.DefaultServeMux)
 
 		ps := fmt.Sprintf(":%d", *port)
@@ -193,6 +201,7 @@ func main() {
 		log.Infof("HTTP server exited with status %v", err)
 	}()
 
+	// Main loop: continously read from the camera and handle images.
 	for ctx.Err() == nil {
 		select {
 		case i := <-c:
@@ -207,7 +216,9 @@ func main() {
 
 			//video.Put(i)
 			rec.Put(i)
-			i.Release()
+
+			// All done with this image.
+			i.Close()
 		case <-ctx.Done():
 			return
 		}

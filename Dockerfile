@@ -73,4 +73,5 @@ COPY --from=cam-builder-go /root/go/src/cam/libs /usr/local/lib
 RUN ldconfig
 
 EXPOSE 8443
+ENV GOTRACEBACK=system
 CMD ["./cam", "--port", "8443", "--root", "/mnt/db", "--config", "/mnt/config/config.json"]

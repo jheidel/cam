@@ -27,7 +27,7 @@ func (p *VideoSinkProducer) New(trigger source.Image) *VideoSink {
 	r := p.Filesystem.NewRecord(trigger.Time)
 
 	go func() {
-		defer trigger.Release()
+		defer trigger.Close()
 		path := r.Paths().ThumbPath
 		err := process.WriteThumb(path, trigger)
 		if err != nil {
