@@ -141,14 +141,9 @@ func (f *FFmpegSink) Close() {
 }
 
 func (f *FFmpegSink) Put(input source.Image) {
-	b := input.Mat.ToBytes()
-	c := make([]byte, len(b))
-	copy(b, c)
-	b = nil
-
 	// TODO ensure Mat is actually bgr24? Bindings don't appear to exist though.
 	select {
-	case f.b <- c:
+	case f.b <- input.Mat.ToBytes():
 	default:
 		log.Warningf("WARN: video output frame skip. Insufficient buffer?")
 	}
