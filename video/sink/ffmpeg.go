@@ -141,9 +141,16 @@ func (f *FFmpegSink) Close() {
 }
 
 func (f *FFmpegSink) Put(input source.Image) {
+	b := input.Mat.ToBytes()
+	// Without this copy here we seem to get random memory corruption? I'm not
+	// sure why though since CGo bytes should make a copy.
+	c := make([]byte, len(b))
+	copy(c, b)
+	b = nil
+
 	// TODO ensure Mat is actually bgr24? Bindings don't appear to exist though.
 	select {
-	case f.b <- input.Mat.ToBytes():
+	case f.b <- c:
 	default:
 		log.Warningf("WARN: video output frame skip. Insufficient buffer?")
 	}

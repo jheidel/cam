@@ -93,8 +93,6 @@ type VideoRecordPaths struct {
 
 // Paths provides locations for where new files should be created.
 func (r *VideoRecord) Paths() *VideoRecordPaths {
-	r.l.Lock()
-	defer r.l.Unlock()
 	return &VideoRecordPaths{
 		VideoPath:  filepath.Join(r.fs.options.BasePath, r.Identifier+ExtVideo),
 		ThumbPath:  filepath.Join(r.fs.options.BasePath, r.Identifier+ExtThumb),
@@ -103,13 +101,13 @@ func (r *VideoRecord) Paths() *VideoRecordPaths {
 }
 
 func (r *VideoRecord) SetDetections(detections []process.Detection) {
+	defer r.fs.notifyListeners()
 	r.l.Lock()
 	defer r.l.Unlock()
 	r.setDetections(detections)
 	if err := r.fs.db.Debug().Save(r).Error; err != nil {
 		log.Fatalf("SetDetections.Save %v for %v", err, spew.Sdump(r))
 	}
-	r.fs.notifyListeners()
 }
 
 func (r *VideoRecord) setDetections(detections []process.Detection) {
@@ -123,6 +121,7 @@ func (r *VideoRecord) setDetections(detections []process.Detection) {
 }
 
 func (r *VideoRecord) UpdateVideo(detections []process.Detection) {
+	defer r.fs.notifyListeners()
 	p := r.Paths().VideoPath
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -143,10 +142,11 @@ func (r *VideoRecord) UpdateVideo(detections []process.Detection) {
 	if err = r.fs.db.Debug().Save(r).Error; err != nil {
 		log.Fatalf("UpdateVideo.Save %v for %v", err, spew.Sdump(r))
 	}
-	r.fs.notifyListeners()
 }
 
 func (r *VideoRecord) UpdateThumb() {
+	defer r.fs.notifyListeners()
+
 	p := r.Paths().ThumbPath
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -160,10 +160,11 @@ func (r *VideoRecord) UpdateThumb() {
 	if err = r.fs.db.Debug().Save(r).Error; err != nil {
 		log.Fatalf("UpdateThumb.Save %v for %v", err, spew.Sdump(r))
 	}
-	r.fs.notifyListeners()
 }
 
 func (r *VideoRecord) UpdateVThumb() {
+	defer r.fs.notifyListeners()
+
 	p := r.Paths().VThumbPath
 	fi, err := os.Stat(p)
 	if err != nil {
@@ -177,10 +178,11 @@ func (r *VideoRecord) UpdateVThumb() {
 	if err = r.fs.db.Debug().Save(r).Error; err != nil {
 		log.Fatalf("UpdateVThumb.Save %v for %v", err, spew.Sdump(r))
 	}
-	r.fs.notifyListeners()
 }
 
 func (r *VideoRecord) Delete() {
+	defer r.fs.notifyListeners()
+
 	r.l.Lock()
 	defer r.l.Unlock()
 
@@ -208,8 +210,6 @@ func (r *VideoRecord) Delete() {
 		log.Fatalf("Delete %v for %v", err, spew.Sdump(r))
 	}
 	log.Infof("Deleted event %v (id=%v)", r.Identifier, r.ID)
-
-	r.fs.notifyListeners()
 }
 
 type FilesystemOptions struct {
