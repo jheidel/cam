@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -25,7 +24,6 @@ import (
 	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/handlers"
 	log "github.com/sirupsen/logrus"
-	"gocv.io/x/gocv"
 )
 
 var (
@@ -191,12 +189,6 @@ func main() {
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))
-		// Useful for debugging opencv memory leaks.
-		http.HandleFunc("/matprofile", func(w http.ResponseWriter, r *http.Request) {
-			var b bytes.Buffer
-			gocv.MatProfile.WriteTo(&b, 1)
-			fmt.Fprintf(w, b.String())
-		})
 		push.RegisterHandlers(http.DefaultServeMux)
 
 		ps := fmt.Sprintf(":%d", *port)

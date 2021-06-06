@@ -1,10 +1,8 @@
 package video
 
 import (
-	"bytes"
 	"cam/video/process"
 	"database/sql/driver"
-	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -81,33 +79,9 @@ type VideoRecord struct {
 	HaveClassification bool
 	Classification     *Classification
 
-	// DEPRECATED
-	// TODO: remove once old data expires from database
-	ClassificationBytes []byte
-
 	// Reference to parent.
 	fs *Filesystem
 	l  sync.Mutex
-}
-
-func (r *VideoRecord) AfterFind(tx *gorm.DB) error {
-	r.l.Lock()
-	defer r.l.Unlock()
-	// Handle legacy database format for classifications.
-	// TODO: remove after old data is migrated to new format.
-	if len(r.ClassificationBytes) == 0 {
-		return nil
-	}
-	br := bytes.NewReader(r.ClassificationBytes)
-	d := gob.NewDecoder(br)
-	c := &Classification{}
-	if err := d.Decode(c); err != nil {
-		log.Errorf("Failed to decode classification %v", err)
-		return err
-	}
-	r.Classification = c
-	r.ClassificationBytes = nil
-	return nil
 }
 
 // VideoRecordPaths defines the absolute paths where new files should be created.
@@ -305,10 +279,6 @@ func NewFilesystem(opts FilesystemOptions) (*Filesystem, error) {
 		options: opts,
 	}
 
-	if err := f.MigrateOldClassification(); err != nil {
-		log.Fatalf("Failed to migrate old classification: %v", err)
-	}
-
 	go func() {
 		gt := time.NewTicker(GarbageCollectionInterval)
 		for {
@@ -437,18 +407,4 @@ func (f *Filesystem) GetRecordByID(ID string) *VideoRecord {
 	}
 	record.fs = f
 	return record
-}
-
-func (f *Filesystem) MigrateOldClassification() error {
-	var records []*VideoRecord
-	if err := f.db.Debug().Where("classification_bytes is not NULL").Find(&records).Error; err != nil {
-		return err
-	}
-	log.Infof("Migrating %d obsolete classification records", len(records))
-	for _, r := range records {
-		if err := f.db.Debug().Save(r).Error; err != nil {
-			return fmt.Errorf("Save failed for %q: %v", r.ID, err)
-		}
-	}
-	return nil
 }
