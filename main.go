@@ -162,7 +162,7 @@ func main() {
 	metaws := serve.NewMetaUpdater()
 	fs.AddListener(metaws) // Receive filesystem updates
 
-	push, err := notify.NewWebPush(*rootPath, fs.DB())
+	push, err := notify.NewWebPush(fs.DB())
 	if err != nil {
 		log.Fatalf("Failed to set up web push: %v", err)
 	}

@@ -41,7 +41,7 @@ type PushConfig struct {
 	LastFailureMessage string
 }
 
-func NewWebPush(root string, db *gorm.DB) (*WebPush, error) {
+func NewWebPush(db *gorm.DB) (*WebPush, error) {
 	db.AutoMigrate(&VAPIDKey{})
 	db.AutoMigrate(&PushConfig{})
 
