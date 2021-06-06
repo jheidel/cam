@@ -17,4 +17,7 @@ type Config struct {
 
 	FullchainPath string
 	PrivkeyPath   string
+
+	// If non-zero, limits the record time to this value. Otherwise, use default.
+	MaxRecordTimeSec int
 }

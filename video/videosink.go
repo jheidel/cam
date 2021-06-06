@@ -68,16 +68,19 @@ func (w *VideoSink) AddDetections(detections process.Detections) {
 }
 
 func (w *VideoSink) Close() {
+	log.Infof("Closing underlying video sink")
 	w.sink.Close()
+
+	log.Infof("Updating database with final record")
 	w.Record.UpdateVideo(w.detections.SortedDetections())
 
 	// Create video thumbnail.
+	log.Infof("Scheduling creation of video thumbnail")
 	paths := w.Record.Paths()
 	c := w.p.VThumbProducer.Process(paths.VideoPath, paths.VThumbPath)
 	go func() {
-		if c != nil {
-			<-c
-			w.Record.UpdateVThumb()
-		}
+		<-c
+		log.Infof("Updating database for video thumbnail")
+		w.Record.UpdateVThumb()
 	}()
 }

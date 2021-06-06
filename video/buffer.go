@@ -57,6 +57,9 @@ func NewBuffer(maxAge time.Duration) *Buffer {
 				c <- true
 				return
 			case c := <-b.getLast:
+				if len(b.buffer) == 0 {
+					panic("unexpected empty buffer")
+				}
 				last := b.buffer[len(b.buffer)-1]
 				c <- last.Clone()
 			}

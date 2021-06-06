@@ -64,25 +64,22 @@ func (f *FPSNormalize) Put(input source.Image) {
 			log.Warningf("Exceeded fps normalize frame fill. Output stream will skip.")
 			f.curFrame = input.Time
 		}
-
 		nextFrame = f.curFrame.Add(f.frameDur)
+
 		if input.Time.Before(nextFrame) {
 			i := source.Image{
 				Mat:  input.Mat,
 				Time: f.curFrame,
-				// TODO pool propagate?
 			}
 			f.sink.Put(i)
 			input.Mat.CopyTo(&f.last)
 			return
-		} else {
-			// Missed a frame. Rewrite last frame.
-			i := source.Image{
-				Mat:  f.last,
-				Time: f.curFrame,
-				// TODO pool propagate?
-			}
-			f.sink.Put(i)
 		}
+		// Missed a frame. Rewrite last frame.
+		i := source.Image{
+			Mat:  f.last,
+			Time: f.curFrame,
+		}
+		f.sink.Put(i)
 	}
 }

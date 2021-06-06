@@ -57,10 +57,11 @@ func NewRecorder(p *VideoSinkProducer, o *RecorderOptions) *Recorder {
 			if !recording {
 				panic("expected to be in state recording")
 			}
-			go out.Close()
+			out.Close()
 			for _, l := range r.Listeners {
 				l.StopRecording(out.Record)
 			}
+			out = nil
 			recording = false
 			stop = nil
 			stopLong = nil

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -19,7 +20,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-const DatabaseFile = "webpush.db"
+const LegacyDatabaseFile = "webpush.db"
 
 type VAPIDKey struct {
 	Public  string
@@ -47,18 +48,63 @@ type PushConfig struct {
 	LastFailureMessage string
 }
 
-func NewWebPush(root string) (*WebPush, error) {
-	path := filepath.Join(root, DatabaseFile)
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+// TODO remove once old databse converted
+func maybeMigrate(root string, db *gorm.DB) error {
+	path := filepath.Join(root, LegacyDatabaseFile)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		// Nothing to do.
+		return nil
+	}
+
+	odb, err := gorm.Open(sqlite.Open(path), &gorm.Config{
 		// TODO customize logger to integrate with logrus instead of dumping to
 		// stdout using a different format
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %v", err)
+		return fmt.Errorf("failed to open legacy vapid database: %v", err)
 	}
+	log.Infof("Loaded legacy database %v", path)
+	odb.AutoMigrate(&PushConfig{})
+	odb.AutoMigrate(&VAPIDKey{})
+
+	var pcs []*PushConfig
+	if err := odb.Find(&pcs).Error; err != nil {
+		return err
+	}
+	if len(pcs) > 0 {
+		if err := db.Create(pcs).Error; err != nil {
+			return err
+		}
+	}
+
+	var vks []*VAPIDKey
+	if err := odb.Find(&vks).Error; err != nil {
+		return err
+	}
+	log.Infof("Loaded %d VAPID keys", len(vks))
+	if len(vks) > 0 {
+		if err := db.Create(vks).Error; err != nil {
+			return err
+		}
+	}
+
+	if err := os.Rename(path, path+".migrated"); err != nil {
+		return fmt.Errorf("Failed to rename legacy vapid database: %v", err)
+	}
+
+	log.Infof("Successfully migrated VAPID database of %d subscriptions", len(pcs))
+	return nil
+}
+
+func NewWebPush(root string, db *gorm.DB) (*WebPush, error) {
 	db.AutoMigrate(&VAPIDKey{})
 	db.AutoMigrate(&PushConfig{})
+
+	if err := maybeMigrate(root, db); err != nil {
+		return nil, err
+	}
+
 	p := &WebPush{
 		Key: &VAPIDKey{},
 		db:  db,

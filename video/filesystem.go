@@ -264,6 +264,10 @@ type Filesystem struct {
 	l                sync.Mutex
 }
 
+func (f *Filesystem) DB() *gorm.DB {
+	return f.db
+}
+
 type dbConnector struct {
 	MysqlURI string
 }

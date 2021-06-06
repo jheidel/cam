@@ -108,7 +108,9 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 			select {
 			case closec = <-f.close:
 				log.Printf("Closing FFMPEG.")
-				pipe.Close()
+				if err := pipe.Close(); err != nil {
+					log.Fatalf("Failed to close pipe! %v", err)
+				}
 				break loop
 			case b := <-f.b:
 				if _, err := pipe.Write(b); err != nil {
@@ -120,12 +122,13 @@ func NewFFmpegSink(path string, opts FFmpegOptions) *FFmpegSink {
 		}
 
 		log.Printf("Waiting for FFmpeg shutdown...")
-		err = c.Wait()
-		log.Printf("Finished writing %s (error code %v)", path, err)
+		perr := c.Wait()
 
+		log.Printf("Renaming from temp location")
 		if err := os.Rename(f.Path+ExtTemp, f.Path); err != nil {
-			log.Errorf("Error moving file to its final destination")
+			log.Errorf("Error moving file to its final destination %v", err)
 		}
+		log.Printf("Finished writing %s (error code %v)", path, perr)
 		closec <- true
 	}()
 	return f
@@ -138,9 +141,14 @@ func (f *FFmpegSink) Close() {
 }
 
 func (f *FFmpegSink) Put(input source.Image) {
+	b := input.Mat.ToBytes()
+	c := make([]byte, len(b))
+	copy(b, c)
+	b = nil
+
 	// TODO ensure Mat is actually bgr24? Bindings don't appear to exist though.
 	select {
-	case f.b <- input.Mat.ToBytes():
+	case f.b <- c:
 	default:
 		log.Warningf("WARN: video output frame skip. Insufficient buffer?")
 	}

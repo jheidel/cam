@@ -69,6 +69,7 @@ func NewVThumbProducer() *VThumbProducer {
 
 			// TODO maybe context logger to be cleaner?
 
+			log.Infof("Starting thumbnail conversion for %v", w.src)
 			if err := c.Start(); err != nil {
 				log.Errorf("Failed to start thumbnail conversion for %v: %v", w, err)
 				continue
@@ -112,7 +113,9 @@ func (f *VThumbProducer) Process(src, dst string) <-chan bool {
 	case f.c <- w:
 	default:
 		log.Warningf("thumbnail processing dropped due to backlog")
-		return nil
+		go func() {
+			w.donec <- true
+		}()
 	}
 	return w.donec
 }

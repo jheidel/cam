@@ -94,6 +94,7 @@ func (v *VideoCapture) Get() <-chan Image {
 				} else {
 					// TODO remove
 					log.Warning("Failed read from capture source")
+					i.Close()
 				}
 
 				if time.Now().After(v.lastFetch.Add(disconnectDelay)) {

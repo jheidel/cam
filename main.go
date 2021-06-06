@@ -97,6 +97,9 @@ func main() {
 	rectime := 20 * time.Second
 	// Max time for video clips before interruption.
 	maxtime := 5 * time.Minute
+	if v := config.Get().MaxRecordTimeSec; v > 0 {
+		maxtime = time.Duration(v) * time.Second
+	}
 
 	fsOpts := video.FilesystemOptions{
 		DatabaseURI: *database,
@@ -161,7 +164,7 @@ func main() {
 	metaws := serve.NewMetaUpdater()
 	fs.AddListener(metaws) // Receive filesystem updates
 
-	push, err := notify.NewWebPush(*rootPath)
+	push, err := notify.NewWebPush(*rootPath, fs.DB())
 	if err != nil {
 		log.Fatalf("Failed to set up web push: %v", err)
 	}
