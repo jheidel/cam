@@ -60,6 +60,15 @@ func (c *Classification) Value() (driver.Value, error) {
 	return json.Marshal(c)
 }
 
+// I'm adding this just because I'm running into a strange table corruption
+// issue with the gorm schema for VideoRecord. By inserting another table
+// first, maybe that will force different behavior to shed some light on the
+// issue?
+type DummyModel struct {
+	gorm.Model
+	DummyField bool
+}
+
 type VideoRecord struct {
 	gorm.Model
 
@@ -258,6 +267,7 @@ func (c *dbConnector) Connect() (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
+	db.AutoMigrate(&DummyModel{})
 	db.AutoMigrate(&VideoRecord{})
 	log.Infof("Connected to mysql database")
 	return db, nil
