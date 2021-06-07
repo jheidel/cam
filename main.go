@@ -23,6 +23,7 @@ import (
 
 	assetfs "github.com/elazarl/go-bindata-assetfs"
 	"github.com/gorilla/handlers"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -186,6 +187,7 @@ func main() {
 		http.Handle("/thumb", serve.NewThumbServer(fs))
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))
 		http.Handle("/notifyws", notifyws)
+		http.Handle("/metrics", promhttp.Handler())
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))

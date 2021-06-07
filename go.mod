@@ -10,6 +10,7 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/pillash/mp4util v0.0.0-20150601005705-98601ecf290a
+	github.com/prometheus/client_golang v1.10.0
 	github.com/sirupsen/logrus v1.8.1
 	gocv.io/x/gocv v0.27.0
 	gorm.io/driver/mysql v1.1.0
