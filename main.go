@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"gocv.io/x/gocv"
 )
 
 var (
@@ -32,6 +34,9 @@ var (
 	rootPath   = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
 	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
 	database   = flag.String("database", os.Getenv("DATABASE"), "Mysql database path. Required.")
+
+	BuildTimestamp string
+	BuildGitHash   string
 )
 
 func topLevelContext() context.Context {
@@ -188,6 +193,18 @@ func main() {
 		http.Handle("/vthumb", serve.NewVThumbServer(fs))
 		http.Handle("/notifyws", notifyws)
 		http.Handle("/metrics", promhttp.Handler())
+		http.HandleFunc("/build", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			ts, err := strconv.Atoi(BuildTimestamp)
+			if err != nil {
+				log.Fatalf("build timestamp %v not an integer", BuildTimestamp)
+			}
+			t := time.Unix(int64(ts), 0)
+			fmt.Fprintf(w, "ts=%s\n", t.Format("Jan 2, 2006 3:04 PM"))
+			fmt.Fprintf(w, "cam=%s\n", BuildGitHash)
+			fmt.Fprintf(w, "gocv=%s\n", gocv.Version())
+			fmt.Fprintf(w, "opencv=%s\n", gocv.OpenCVVersion())
+		})
 		http.Handle("/",
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))

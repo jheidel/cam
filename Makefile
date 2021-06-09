@@ -1,4 +1,5 @@
 ts := $(shell /bin/date "+%s")
+hash := $(shell git log -1 --pretty=format:"%H")
 
 all: build
 
@@ -14,7 +15,7 @@ debugfs: web/build
 go:
 	go mod download
 	go get -d -v  # Attempt to upgrade
-	go build -tags matprofile -ldflags "-X main.BuildTimestamp=$(ts)"
+	go build -tags matprofile -ldflags "-X main.BuildTimestamp=$(ts) -X main.BuildGitHash=$(hash)"
 
 .PHONY: debug build
 
