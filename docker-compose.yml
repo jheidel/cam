@@ -16,9 +16,6 @@ services:
       # Port 80 will act as a https redirect server.
       #   SSL_CERT: "/path/to/fullchain.pem"
       #   SSL_KEY: "/path/to/privkey.pem"
-      #
-      # To control the user that generates video files, set
-      #   RUN_AS_UID: "1000"
     deploy:
       resources:
         limits:
