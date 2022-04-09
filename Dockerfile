@@ -4,7 +4,7 @@
 
 FROM alpine AS cam-builder-web
 WORKDIR /web/
-RUN apk add --no-cache nodejs nodejs-npm make
+RUN apk add --no-cache nodejs npm make git
 
 # Make sure npm is up to date
 RUN npm install -g npm
@@ -24,7 +24,7 @@ RUN make
 ####
 # Build the go binary
 ####
-FROM gocv/opencv:4.5.2 AS cam-builder-go
+FROM gocv/opencv:4.5.5 AS cam-builder-go
 
 WORKDIR /root/go/src/cam/
 
@@ -45,6 +45,8 @@ RUN make libs
 # Compose everything into the final minimal image.
 ####
 
+# NOTE: this must match the debian version used by gocv's Docker.opencv
+# otherwise the shared library copy completely breaks the system.
 FROM debian:buster-slim
 WORKDIR /app
 
@@ -53,14 +55,6 @@ RUN apt update && apt install -y ffmpeg tzdata ca-certificates
 RUN update-ca-certificates
 # Clean up apt garbage to keep the image small
 RUN apt clean autoclean && apt autoremove -y && rm -rf /var/lib/{apt,dpkg,cache,log}/
-
-# Create binding mount points...
-# ...for video database
-RUN mkdir -p /mnt/db
-# ...for configuration
-RUN mkdir -p /mnt/config
-# ...for HTTP certificates
-RUN mkdir -p /etc/letsencrypt
 
 # Use local timezone.
 # TODO: make image timezone-agnostic (currently used for quiet hours)
@@ -72,6 +66,10 @@ COPY --from=cam-builder-go /root/go/src/cam/cam /app
 COPY --from=cam-builder-go /root/go/src/cam/libs /usr/local/lib
 RUN ldconfig
 
-EXPOSE 8443
+COPY entrypoint.sh .
+
+EXPOSE 443
+EXPOSE 80
+
 ENV GOTRACEBACK=system
-CMD ["./cam", "--port", "8443", "--root", "/mnt/db", "--config", "/mnt/config/config.json"]
+ENTRYPOINT ["/app/entrypoint.sh"]

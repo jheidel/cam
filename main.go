@@ -30,9 +30,12 @@ import (
 )
 
 var (
-	port       = flag.Int("port", 8443, "Port to host http web frontend.")
-	rootPath   = flag.String("root", "/home/jeff/db/", "Root path for storing videos")
-	configFile = flag.String("config", "/home/jeff/go/src/cam/config.template.json", "Path to the camera configuration file")
+	port       = flag.Int("port", 8080, "Port to host http web frontend.")
+	portSSL    = flag.Int("port_ssl", 8443, "Port to host https web frontend (requires certificates set)")
+	sslCert    = flag.String("ssl_cert", os.Getenv("SSL_CERT"), "SSL certificate for https")
+	sslKey     = flag.String("ssl_key", os.Getenv("SSL_KEY"), "SSL private key for https")
+	rootPath   = flag.String("root", "/tmp", "Root path for storing videos")
+	configFile = flag.String("config", "config.template.json", "Path to the camera configuration file")
 	database   = flag.String("database", os.Getenv("DATABASE"), "Mysql database path. Required.")
 
 	BuildTimestamp string
@@ -182,7 +185,6 @@ func main() {
 	rec.Listeners = append(rec.Listeners, notifier)
 
 	go func() {
-		log.Infof("Hosting web frontend on port %d", *port)
 		http.Handle("/mjpeg", mjpegServer)
 		http.Handle("/trigger", rec)
 		http.Handle("/events", handlers.CompressHandler(meta))
@@ -209,9 +211,25 @@ func main() {
 			http.FileServer(
 				&assetfs.AssetFS{Asset: Asset, AssetDir: AssetDir, AssetInfo: AssetInfo, Prefix: "web/build/default"}))
 		push.RegisterHandlers(http.DefaultServeMux)
+		var err error
 
-		ps := fmt.Sprintf(":%d", *port)
-		err := http.ListenAndServeTLS(ps, config.Get().FullchainPath, config.Get().PrivkeyPath, nil)
+		if cert, key := *sslCert, *sslKey; cert != "" && key != "" {
+			go func() {
+				// Redirect HTTP traffic to HTTPS endpoint
+				log.Infof("Hosting https redirect on port %d", *port)
+				err := http.ListenAndServe(fmt.Sprintf(":%d", *port), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusMovedPermanently)
+				}))
+				log.Infof("HTTP redirect server exited with status %v", err)
+			}()
+			log.Infof("Hosting web frontend on port %d", *portSSL)
+			err = http.ListenAndServeTLS(fmt.Sprintf(":%d", *portSSL), cert, key, nil)
+		} else {
+			// Fallback to serving on HTTP
+			log.Infof("Hosting web frontend on port %d", *port)
+			err = http.ListenAndServe(fmt.Sprintf(":%d", *port), nil)
+		}
+
 		log.Infof("HTTP server exited with status %v", err)
 	}()
 

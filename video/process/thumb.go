@@ -17,7 +17,7 @@ func WriteThumb(path string, input source.Image) error {
 		return err
 	}
 
-	if err := ioutil.WriteFile(path, jpeg, 0644); err != nil {
+	if err := ioutil.WriteFile(path, jpeg.GetBytes(), 0644); err != nil {
 		return err
 	}
 

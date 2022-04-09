@@ -3,13 +3,22 @@ services:
   cam:
     image: jheidel/cam
     ports:
-      - "8443:8443"
+      - "8080:80"
     volumes:
-      - /home/jeff/db:/mnt/db
-      - /home/jeff/devkeys:/mnt/cert
-      - /home/jeff/devconfig:/mnt/config
+      # Mount location where videos are stored.
+      - /home/jeff/db:/data/
+      # Mount location where config.json is placed (derived from config.template.json)
+      - /home/jeff/devconfig:/config/:ro
     environment:
-      - DATABASE=root:root@(mysql)/cam
+      DATABASE: "root:root@(mysql)/cam"
+      # NOTE: If you want to run SSL (which is needed for browser
+      # notifications), define these environment variables and expose port 443.
+      # Port 80 will act as a https redirect server.
+      #   SSL_CERT: "/path/to/fullchain.pem"
+      #   SSL_KEY: "/path/to/privkey.pem"
+      #
+      # To control the user that generates video files, set
+      #   RUN_AS_UID: "1000"
     deploy:
       resources:
         limits:
@@ -34,7 +43,7 @@ services:
       - PMA_USER=root
       - PMA_PASSWORD=root
     ports:
-      - "8444:80"
+      - "8081:80"
     depends_on:
       - mysql
 

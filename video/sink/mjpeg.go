@@ -137,13 +137,13 @@ func (s *MJPEGStream) Put(input gocv.Mat) {
 		return
 	}
 
-	header := fmt.Sprintf(headerf, len(jpeg))
+	header := fmt.Sprintf(headerf, jpeg.Len())
 
 	// TODO: optimize to avoid the make+copy (tricky with multiple consumers)
-	l := len(header) + len(jpeg)
+	l := len(header) + jpeg.Len()
 	b := make([]byte, l)
 	copy(b, header)
-	copy(b[len(header):], jpeg)
+	copy(b[len(header):], jpeg.GetBytes())
 
 	s.lock.Lock()
 	defer s.lock.Unlock()

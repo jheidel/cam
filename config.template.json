@@ -1,5 +1,5 @@
 {
-  "URI": "/home/jeff/db/20180502-182743-0700_video.mp4",
+  "URI": "/tmp/test_video_file_source.mp4",
   "FilesystemMaxSize": 107374182400,
 
   "NotificationHoursStart": 6,
@@ -14,8 +14,5 @@
       {"X": 200, "Y": 850}
   ],
   "MotionThresh": 48,
-  "MotionErode": 15,
-
-  "FullchainPath": "/etc/letsencrypt/live/site.com/fullchain.pem",
-  "PrivkeyPath": "/etc/letsencrypt/live/site.com/privkey.pem"
+  "MotionErode": 15
 }
