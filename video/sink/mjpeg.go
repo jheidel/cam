@@ -4,8 +4,11 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"gocv.io/x/gocv"
+	"image"
 	"net/http"
+	"strconv"
 	"sync"
+	"time"
 )
 
 // MJPEG multi-streaming, based on implementation by saljam:
@@ -22,6 +25,34 @@ const headerf = "\r\n" +
 type MJPEGID struct {
 	// TODO include camera
 	Name string
+}
+
+type MJPEGClientState struct {
+	Width   int
+	Height  int
+	FPS     float64
+	Quality int
+
+	lastSent time.Time
+}
+
+func (cl *MJPEGClientState) ready() bool {
+	if cl.FPS == 0 {
+		return true // No FPS limit
+	}
+	if cl.lastSent.IsZero() {
+		return true // first frame
+	}
+	d := time.Since(cl.lastSent)
+	return float64(d) >= float64(time.Second)/cl.FPS
+}
+
+func (cl *MJPEGClientState) key() MJPEGClientState {
+	return MJPEGClientState{
+		Width:   cl.Width,
+		Height:  cl.Height,
+		Quality: cl.Quality,
+	}
 }
 
 type MJPEGServer struct {
@@ -46,7 +77,7 @@ func (s *MJPEGServer) NewStream(id MJPEGID) *MJPEGStream {
 
 	ms := &MJPEGStream{
 		id:     id,
-		m:      make(map[chan []byte]bool),
+		m:      make(map[chan []byte]*MJPEGClientState),
 		frame:  make([]byte, len(headerf)),
 		parent: s,
 	}
@@ -86,12 +117,51 @@ func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.WithField("addr", r.RemoteAddr).Infof("MJPEG stream connected to %v", id)
 	w.Header().Add("Content-Type", "multipart/x-mixed-replace;boundary="+boundaryWord)
+
+	cs := &MJPEGClientState{}
+
+	if s := r.Form.Get("width"); s != "" {
+		if v, err := strconv.Atoi(s); err != nil {
+			http.Error(w, "bad width", http.StatusBadRequest)
+			return
+		} else {
+			cs.Width = v
+		}
+	}
+
+	if s := r.Form.Get("height"); s != "" {
+		if v, err := strconv.Atoi(s); err != nil {
+			http.Error(w, "bad height", http.StatusBadRequest)
+			return
+		} else {
+			cs.Height = v
+		}
+	}
+
+	if s := r.Form.Get("quality"); s != "" {
+		if v, err := strconv.Atoi(s); err != nil {
+			http.Error(w, "bad quality", http.StatusBadRequest)
+			return
+		} else {
+			cs.Quality = v
+		}
+	}
+
+	if s := r.Form.Get("fps"); s != "" {
+		if v, err := strconv.ParseFloat(s, 64); err != nil {
+			http.Error(w, "bad fps", http.StatusBadRequest)
+			return
+		} else {
+			cs.FPS = v
+		}
+	}
+
+	log.WithField("addr", r.RemoteAddr).Infof("MJPEG stream connected to %v for %q with config %#v", id, id.Name, cs)
 
 	c := make(chan []byte)
 	stream.lock.Lock()
-	stream.m[c] = true
+	stream.m[c] = cs
 	stream.lock.Unlock()
 
 	for {
@@ -100,8 +170,6 @@ func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			break
 		}
-
-		// TODO enforce a maximum FPS?
 	}
 
 	stream.lock.Lock()
@@ -112,7 +180,7 @@ func (s *MJPEGServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type MJPEGStream struct {
 	id    MJPEGID
-	m     map[chan []byte]bool
+	m     map[chan []byte]*MJPEGClientState
 	frame []byte
 
 	parent *MJPEGServer
@@ -122,7 +190,17 @@ type MJPEGStream struct {
 func (s *MJPEGStream) empty() bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	return len(s.m) == 0
+	if len(s.m) == 0 {
+		return true // no clients
+	}
+
+	// check if there is a client available for a new frame
+	for _, cl := range s.m {
+		if cl.ready() {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *MJPEGStream) Put(input gocv.Mat) {
@@ -131,25 +209,73 @@ func (s *MJPEGStream) Put(input gocv.Mat) {
 		return
 	}
 
-	jpeg, err := gocv.IMEncode(".jpg", input)
-	if err != nil {
-		log.Errorf("Error encoding to JPG for MJPEG stream %v: %v", s.id, err)
-		return
+	// Idenitfy all the resolutions we need to encode for connected clients.
+	resolutions := make(map[MJPEGClientState][]byte)
+	s.lock.Lock()
+	for _, cl := range s.m {
+		if !cl.ready() {
+			continue
+		}
+		resolutions[cl.key()] = nil
+	}
+	s.lock.Unlock()
+
+	// Generate all resolutions and qualities we need
+	for res, _ := range resolutions {
+		var convert gocv.Mat
+		convert = input
+
+		small := gocv.NewMat()
+		defer small.Close()
+
+		if res.Width != 0 || res.Height != 0 {
+			gocv.Resize(input, &small, image.Point{X: res.Width, Y: res.Height}, 0, 0, gocv.InterpolationDefault)
+			convert = small
+		}
+
+		var jpeg *gocv.NativeByteBuffer
+		var err error
+
+		if res.Quality == 0 {
+			jpeg, err = gocv.IMEncode(".jpg", convert)
+		} else {
+			jpeg, err = gocv.IMEncodeWithParams(".jpg", convert, []int{gocv.IMWriteJpegQuality, res.Quality})
+		}
+
+		if err != nil {
+			log.Errorf("Error encoding to JPG for MJPEG stream %v: %v", s.id, err)
+			return
+		}
+
+		header := fmt.Sprintf(headerf, jpeg.Len())
+
+		// TODO: optimize to avoid the make+copy (tricky with multiple consumers)
+		l := len(header) + jpeg.Len()
+		b := make([]byte, l)
+		copy(b, header)
+		copy(b[len(header):], jpeg.GetBytes())
+
+		// Save final result
+		resolutions[res] = b
 	}
 
-	header := fmt.Sprintf(headerf, jpeg.Len())
-
-	// TODO: optimize to avoid the make+copy (tricky with multiple consumers)
-	l := len(header) + jpeg.Len()
-	b := make([]byte, l)
-	copy(b, header)
-	copy(b[len(header):], jpeg.GetBytes())
-
+	// Stream converted image to all clients
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	for c := range s.m {
+	for c, cl := range s.m {
+		if !cl.ready() {
+			continue
+		}
+
+		b, ok := resolutions[cl.key()]
+		if !ok {
+			log.Warnf("generated image not available for %#v, maybe recently connected client?", cl.key())
+			continue
+		}
+
 		select {
 		case c <- b:
+			cl.lastSent = time.Now()
 		default:
 			// Skip listeners not ready for next frame.
 		}

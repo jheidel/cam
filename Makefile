@@ -15,6 +15,7 @@ debugfs: web/build
 go:
 	go mod download
 	go get -d -u -v # Attempt to upgrade
+	#go build -asan -tags matprofile -ldflags "-X main.BuildTimestamp=$(ts) -X main.BuildGitHash=$(hash)"
 	go build -tags matprofile -ldflags "-X main.BuildTimestamp=$(ts) -X main.BuildGitHash=$(hash)"
 
 .PHONY: debug build

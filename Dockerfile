@@ -29,8 +29,8 @@ FROM gocv/opencv:4.5.5 AS cam-builder-go
 WORKDIR /root/go/src/cam/
 
 # Install go-bindata executable
-RUN go get github.com/go-bindata/go-bindata/...
-RUN go get github.com/elazarl/go-bindata-assetfs/...
+RUN go install github.com/go-bindata/go-bindata/go-bindata@latest
+RUN go install github.com/elazarl/go-bindata-assetfs/go-bindata-assetfs@latest
 
 # Copy all source files.
 COPY . .
