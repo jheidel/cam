@@ -24,7 +24,7 @@ RUN make
 ####
 # Build the go binary
 ####
-FROM gocv/opencv:4.5.5 AS cam-builder-go
+FROM gocv/opencv:4.6.0 AS cam-builder-go
 
 WORKDIR /root/go/src/cam/
 
